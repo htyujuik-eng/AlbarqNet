@@ -65,6 +65,9 @@ jobs:
           import java.io.BufferedOutputStream
           import java.net.InetSocketAddress
           import java.net.Socket
+          import com.jcraft.jsch.JSch
+          import com.jcraft.jsch.ChannelExec
+          import java.util.Properties
 
           private val Navy = Color(0xFF071629)
           private val Panel = Color(0xFF102B45)
@@ -101,6 +104,7 @@ jobs:
               var message by remember { mutableStateOf("أضف الراوتر للبدء") }
               var selectedRouter by remember { mutableStateOf<RouterEntry?>(null) }
               var usersLoading by remember { mutableStateOf(false) }
+              var showOpenWrt by remember { mutableStateOf(false) }
               val scope = rememberCoroutineScope()
 
               MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Navy, surface = Panel, onSurface = Color.White)) {
@@ -118,7 +122,7 @@ jobs:
                                   Text("⚡ البرق نت", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                                   Text("إدارة MikroTik عن بُعد", color = Cyan, fontSize = 13.sp)
                               }
-                              Text("API", color = Cyan, fontWeight = FontWeight.Bold)
+                              TextButton(onClick = { showOpenWrt = true }) { Text("أجهزة OpenWrt", color = Cyan) }
                           }
                           Spacer(Modifier.height(18.dp))
                           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -223,6 +227,7 @@ jobs:
                           Text("بيانات الدخول تبقى في ذاكرة التطبيق لهذه الجلسة فقط.", color = Muted, fontSize = 10.sp)
                       }
                   }
+                  if (showOpenWrt) OpenWrtDialog(context, { showOpenWrt = false })
                   if (showAdd) AddRouterDialog(
                       onDismiss = { showAdd = false },
                       onAdd = { name, host, port, user, pass ->
@@ -468,12 +473,90 @@ jobs:
                   val v=input.read(); if(v<0) throw IllegalStateException("انتهى اتصال الراوتر"); return v
               }
           }
+
+          
+          data class OpenWrtDevice(val ip:String,val state:String,val host:String="—",val model:String="—",val clients:String="غير متاح")
+          class OpenWrtPasswordStore(c:Context) {
+              private val prefs=c.getSharedPreferences("albarq_openwrt",Context.MODE_PRIVATE)
+              private val alias="AlbarqOpenWrtKey"
+              private fun secret():SecretKey {
+                  val ks=KeyStore.getInstance("AndroidKeyStore").apply{load(null)}
+                  (ks.getKey(alias,null) as? SecretKey)?.let{return it}
+                  val g=KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES,"AndroidKeyStore")
+                  g.init(KeyGenParameterSpec.Builder(alias,KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT).setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
+                  return g.generateKey()
+              }
+              fun save(v:String){val c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,secret());prefs.edit().putString("pw",Base64.encodeToString(c.iv+c.doFinal(v.toByteArray()),Base64.NO_WRAP)).apply()}
+              fun load():String=runCatching{val b=Base64.decode(prefs.getString("pw",""),Base64.NO_WRAP);val c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.DECRYPT_MODE,secret(),GCMParameterSpec(128,b.copyOfRange(0,12)));String(c.doFinal(b.copyOfRange(12,b.size)))}.getOrDefault("")
+          }
+          private fun openWrtSsh(ip:String,pw:String,cmd:String):String {
+              val session=JSch().getSession("root",ip,22);session.setPassword(pw)
+              val cfg=Properties();cfg.put("StrictHostKeyChecking","no");session.setConfig(cfg);session.connect(2200)
+              try {val ch=session.openChannel("exec") as ChannelExec;ch.setCommand(cmd);ch.setInputStream(null);val out=java.io.ByteArrayOutputStream();ch.outputStream=out;ch.connect(2200)
+                  val end=System.currentTimeMillis()+2200;while(!ch.isClosed && System.currentTimeMillis()<end) Thread.sleep(50)
+                  val result=out.toString("UTF-8").trim();ch.disconnect();return result
+              } finally {session.disconnect()}
+          }
+          private fun scanOpenWrt(pw:String):List<OpenWrtDevice> {
+              val list=mutableListOf<OpenWrtDevice>()
+              for(n in 10..35) {
+                  val ip="10.0.0."+n
+                  try {
+                      val host=openWrtSsh(ip,pw,"cat /proc/sys/kernel/hostname").ifBlank{"OpenWrt"}
+                      val model=openWrtSsh(ip,pw,"cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name").ifBlank{"غير معروف"}
+                      val countCmd="iw dev 2>/dev/null | awk '/Interface/{print \\\$2}' | while read i; do iw dev \\\$i station dump 2>/dev/null; done | awk '/^Station /{print \\\$2}' | sort -u | wc -l"
+                      val count=runCatching{openWrtSsh(ip,pw,countCmd)}.getOrNull()?.takeIf{it.matches(Regex("\\\\d+"))} ?: "غير متاح"
+                      list.add(OpenWrtDevice(ip,"دخول ناجح",host.lines().first(),model.lines().first(),count))
+                  } catch(e:Exception) {
+                      val reachable=runCatching{Socket().use{it.connect(InetSocketAddress(ip,22),500)};true}.getOrDefault(false)
+                      if(reachable) list.add(OpenWrtDevice(ip,"SSH متاح؛ تعذر تسجيل الدخول"))
+                  }
+              }
+              return list
+          }
+          @Composable fun OpenWrtDialog(ctx:Context,onClose:()->Unit) {
+              val store=remember{OpenWrtPasswordStore(ctx)}
+              var pw by remember{mutableStateOf(store.load())}
+              var busy by remember{mutableStateOf(false)}
+              var status by remember{mutableStateOf("النطاق 10.0.0.10 إلى 10.0.0.35")}
+              var devices by remember{mutableStateOf<List<OpenWrtDevice>>(emptyList())}
+              val scope=rememberCoroutineScope()
+              AlertDialog(onDismissRequest=onClose,title={Text("فحص أجهزة OpenWrt")},text={
+                  Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                      OutlinedTextField(pw,{pw=it},label={Text("كلمة مرور root المشتركة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+                      Text("تحفظ مشفّرة على الهاتف. الفحص لا يغيّر إعدادات الراوترات.",color=Muted,fontSize=11.sp)
+                      Text(status,color=Cyan,fontSize=11.sp)
+                      if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                      LazyColumn(Modifier.heightIn(max=300.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                          items(devices) { dev ->
+                              Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
+                                  Column(Modifier.padding(8.dp)) {
+                                      Text(dev.ip+" • "+dev.state,color=Color.White,fontSize=12.sp)
+                                      if(dev.host!="—") Text(dev.host+" | "+dev.model+" | أجهزة لاسلكية: "+dev.clients,color=Muted,fontSize=11.sp)
+                                  }
+                              }
+                          }
+                      }
+                  }
+              },confirmButton={TextButton(enabled=!busy && pw.isNotBlank(),onClick={
+                  store.save(pw);busy=true;devices=emptyList();status="جارٍ فحص 26 عنواناً..."
+                  scope.launch {
+                      val result=withContext(Dispatchers.IO){runCatching{scanOpenWrt(pw)}}
+                      result.onSuccess{devices=it;status="انتهى الفحص؛ أجهزة SSH المستجيبة: "+it.size}
+                          .onFailure{status="تعذر الفحص: "+it.message}
+                      busy=false
+                  }
+              }){Text(if(busy)"جارٍ الفحص..." else "حفظ وفحص")}},dismissButton={TextButton(onClick=onClose){Text("إغلاق")}})
+          }
+
           KOTLIN
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 4").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.4.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
+          s = p.read_text().replace("versionCode = 1", "versionCode = 5").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.5.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
+          if "com.github.mwiede:jsch" not in s:
+              s = s.replace("dependencies {", 'dependencies {\\n    implementation("com.github.mwiede:jsch:0.2.20")', 1)
           s += """
 
           android {
@@ -495,5 +578,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK-v0.4
+          name: AlbarqNet-APK-v0.5
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
