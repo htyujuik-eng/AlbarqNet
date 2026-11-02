@@ -29,6 +29,17 @@ jobs:
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
 
+      - name: Inspect project sources
+        run: |
+          echo '--- FILES ---'
+          find appsrc/app/src/main -maxdepth 5 -type f
+          echo '--- MAIN ACTIVITY ---'
+          sed -n '1,260p' appsrc/app/src/main/java/com/albarqnet/app/MainActivity.kt
+          echo '--- APP GRADLE ---'
+          cat appsrc/app/build.gradle.kts
+          echo '--- MANIFEST ---'
+          cat appsrc/app/src/main/AndroidManifest.xml
+
       - name: Set Android Java target to 17
         run: |
           python3 - <<'PY'
