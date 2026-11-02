@@ -8,44 +8,337 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
       - name: Extract project
         run: |
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
-
-      - name: Inspect project sources
+      - name: Add MikroTik API connection
         run: |
-          echo '--- FILES ---'
-          find appsrc/app/src/main -maxdepth 5 -type f
-          echo '--- MAIN ACTIVITY ---'
-          sed -n '1,260p' appsrc/app/src/main/java/com/albarqnet/app/MainActivity.kt
-          echo '--- APP GRADLE ---'
-          cat appsrc/app/build.gradle.kts
-          echo '--- MANIFEST ---'
-          cat appsrc/app/src/main/AndroidManifest.xml
+          cat > appsrc/app/src/main/java/com/albarqnet/app/MainActivity.kt <<'KOTLIN'
+          package com.albarqnet.app
 
-      - name: Set Android Java target to 17
-        run: |
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.Add
+          import androidx.compose.material.icons.filled.Router
+          import androidx.compose.material.icons.filled.Refresh
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.text.input.PasswordVisualTransformation
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.io.BufferedInputStream
+          import java.io.BufferedOutputStream
+          import java.net.InetSocketAddress
+          import java.net.Socket
+
+          private val Navy = Color(0xFF071629)
+          private val Panel = Color(0xFF102B45)
+          private val Cyan = Color(0xFF45D5F5)
+          private val Muted = Color(0xFF9CB2C8)
+
+          data class RouterEntry(
+              val name: String, val host: String, val port: String,
+              val username: String, val password: String,
+              var status: String = "غير متصل",
+              var identity: String = "—", var cpu: String = "—",
+              var memory: String = "—", var uptime: String = "—",
+              var activeUsers: String = "—", var lastError: String = ""
+          )
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent { AlbarqApp() }
+              }
+          }
+
+          @Composable
+          fun AlbarqApp() {
+              val routers = remember { mutableStateListOf<RouterEntry>() }
+              var showAdd by remember { mutableStateOf(false) }
+              var busy by remember { mutableStateOf(false) }
+              var message by remember { mutableStateOf("أضف الراوتر للبدء") }
+              val scope = rememberCoroutineScope()
+
+              MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Navy, surface = Panel, onSurface = Color.White)) {
+                  Scaffold(
+                      containerColor = Navy,
+                      floatingActionButton = {
+                          FloatingActionButton(onClick = { showAdd = true }, containerColor = Cyan, contentColor = Navy) {
+                              Icon(Icons.Default.Add, contentDescription = "إضافة راوتر")
+                          }
+                      }
+                  ) { padding ->
+                      Column(Modifier.fillMaxSize().padding(padding).padding(18.dp)) {
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                              Column(Modifier.weight(1f)) {
+                                  Text("⚡ البرق نت", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                                  Text("إدارة MikroTik عن بُعد", color = Cyan, fontSize = 13.sp)
+                              }
+                              Text("API", color = Cyan, fontWeight = FontWeight.Bold)
+                          }
+                          Spacer(Modifier.height(18.dp))
+                          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                              SummaryCard("عدد الراوترات", routers.size.toString(), Modifier.weight(1f))
+                              SummaryCard("المتصلون", routers.sumOf { it.activeUsers.toIntOrNull() ?: 0 }.toString(), Modifier.weight(1f))
+                          }
+                          Spacer(Modifier.height(16.dp))
+                          Text("أجهزة MikroTik", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                          Text("أدخل بيانات حساب API الذي تستخدمه في Smart Controller", color = Muted, fontSize = 12.sp)
+                          Spacer(Modifier.height(10.dp))
+                          if (routers.isEmpty()) {
+                              Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                                  Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                      Icon(Icons.Default.Router, null, tint = Cyan, modifier = Modifier.size(34.dp))
+                                      Spacer(Modifier.height(8.dp))
+                                      Text("لا توجد راوترات مضافة", color = Color.White)
+                                      Text("اضغط + لإضافة الراوتر الرئيسي", color = Muted, fontSize = 12.sp)
+                                  }
+                              }
+                          }
+                          LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                              items(routers) { router ->
+                                  Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                                      Column(Modifier.padding(14.dp)) {
+                                          Row(verticalAlignment = Alignment.CenterVertically) {
+                                              Icon(Icons.Default.Router, null, tint = Cyan, modifier = Modifier.size(28.dp))
+                                              Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                                  Text(router.name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                                  Text("${router.host}:${router.port}", color = Muted, fontSize = 12.sp)
+                                              }
+                                              Text(router.status, color = if (router.status == "متصل") Color(0xFF6FE3A1) else Color(0xFFFFC36B), fontSize = 12.sp)
+                                          }
+                                          Spacer(Modifier.height(10.dp))
+                                          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                              InfoChip("CPU", router.cpu)
+                                              InfoChip("RAM", router.memory)
+                                              InfoChip("Hotspot", router.activeUsers)
+                                          }
+                                          if (router.identity != "—") {
+                                              Text("الراوتر: ${router.identity}  •  مدة التشغيل: ${router.uptime}", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                                          }
+                                          if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFFA0A0), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                                          Button(
+                                              onClick = {
+                                                  scope.launch {
+                                                      busy = true
+                                                      message = "جارٍ الاتصال بـ ${router.name}..."
+                                                      val result = withContext(Dispatchers.IO) {
+                                                          runCatching { RouterOsApiClient().readStatus(router.host, router.port.toInt(), router.username, router.password) }
+                                                      }
+                                                      result.onSuccess { data ->
+                                                          router.status = "متصل"
+                                                          router.identity = data["identity"] ?: "—"
+                                                          router.cpu = data["cpu"] ?: "—"
+                                                          router.memory = data["memory"] ?: "—"
+                                                          router.uptime = data["uptime"] ?: "—"
+                                                          router.activeUsers = data["active"] ?: "0"
+                                                          router.lastError = ""
+                                                          message = "تم الاتصال وقراءة بيانات الراوتر"
+                                                      }.onFailure { error ->
+                                                          router.status = "فشل الاتصال"
+                                                          router.lastError = error.message ?: "تعذر الاتصال"
+                                                          message = router.lastError
+                                                      }
+                                                      busy = false
+                                                  }
+                                              },
+                                              enabled = !busy,
+                                              modifier = Modifier.fillMaxWidth()
+                                          ) {
+                                              Icon(Icons.Default.Refresh, null)
+                                              Spacer(Modifier.width(6.dp))
+                                              Text(if (busy) "جارٍ الفحص..." else "اتصال / تحديث البيانات")
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                          Spacer(Modifier.height(8.dp))
+                          Text(message, color = Muted, fontSize = 12.sp)
+                          Spacer(Modifier.height(6.dp))
+                          Text("بيانات الدخول تبقى في ذاكرة التطبيق لهذه الجلسة فقط.", color = Muted, fontSize = 10.sp)
+                      }
+                  }
+                  if (showAdd) AddRouterDialog(
+                      onDismiss = { showAdd = false },
+                      onAdd = { name, host, port, user, pass ->
+                          routers.add(RouterEntry(name, host, port, user, pass))
+                          showAdd = false
+                      }
+                  )
+              }
+          }
+
+          @Composable
+          fun SummaryCard(title: String, value: String, modifier: Modifier = Modifier) {
+              Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = modifier) {
+                  Column(Modifier.padding(14.dp)) {
+                      Text(value, color = Cyan, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                      Text(title, color = Muted, fontSize = 12.sp)
+                  }
+              }
+          }
+
+          @Composable
+          fun InfoChip(label: String, value: String) {
+              Surface(color = Navy, shape = RoundedCornerShape(10.dp)) {
+                  Text("$label: $value", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
+              }
+          }
+
+          @Composable
+          fun AddRouterDialog(onDismiss: () -> Unit, onAdd: (String, String, String, String, String) -> Unit) {
+              var name by remember { mutableStateOf("المايكروتك الرئيسي") }
+              var host by remember { mutableStateOf("ip.ssye.cc") }
+              var port by remember { mutableStateOf("10952") }
+              var username by remember { mutableStateOf("") }
+              var password by remember { mutableStateOf("") }
+              AlertDialog(
+                  onDismissRequest = onDismiss,
+                  title = { Text("إضافة راوتر MikroTik") },
+                  text = {
+                      Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                          OutlinedTextField(name, { name = it }, label = { Text("اسم الراوتر") }, singleLine = true)
+                          OutlinedTextField(host, { host = it }, label = { Text("العنوان أو النطاق") }, singleLine = true)
+                          OutlinedTextField(port, { port = it }, label = { Text("منفذ API") }, singleLine = true)
+                          OutlinedTextField(username, { username = it }, label = { Text("اسم المستخدم") }, singleLine = true)
+                          OutlinedTextField(password, { password = it }, label = { Text("كلمة المرور") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                          Text("استخدم بيانات حساب API الحالي. لا تحفظ كلمة المرور على جهاز مشترك.", color = Muted, fontSize = 11.sp)
+                      }
+                  },
+                  confirmButton = {
+                      TextButton(onClick = {
+                          if (name.isNotBlank() && host.isNotBlank() && port.toIntOrNull() != null && username.isNotBlank() && password.isNotBlank())
+                              onAdd(name.trim(), host.trim(), port.trim(), username.trim(), password)
+                      }) { Text("إضافة") }
+                  },
+                  dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+              )
+          }
+
+          class RouterOsApiClient {
+              fun readStatus(host: String, port: Int, username: String, password: String): Map<String, String> {
+                  require(port in 1..65535) { "رقم المنفذ غير صحيح" }
+                  Socket().use { socket ->
+                      socket.connect(InetSocketAddress(host, port), 9000)
+                      socket.soTimeout = 9000
+                      val input = BufferedInputStream(socket.getInputStream())
+                      val output = BufferedOutputStream(socket.getOutputStream())
+
+                      fun command(words: List<String>): List<List<String>> {
+                          words.forEach { word ->
+                              val bytes = word.toByteArray(Charsets.UTF_8)
+                              writeLength(output, bytes.size)
+                              output.write(bytes)
+                          }
+                          output.write(0)
+                          output.flush()
+                          val rows = mutableListOf<List<String>>()
+                          while (true) {
+                              val sentence = mutableListOf<String>()
+                              while (true) {
+                                  val length = readLength(input)
+                                  if (length == 0) break
+                                  val bytes = ByteArray(length)
+                                  var offset = 0
+                                  while (offset < length) {
+                                      val count = input.read(bytes, offset, length - offset)
+                                      if (count < 0) throw IllegalStateException("انقطع اتصال API")
+                                      offset += count
+                                  }
+                                  sentence.add(String(bytes, Charsets.UTF_8))
+                              }
+                              if (sentence.isEmpty()) continue
+                              when (sentence[0]) {
+                                  "!re" -> rows.add(sentence)
+                                  "!trap" -> throw IllegalStateException(sentence.drop(1).joinToString(" ").ifBlank { "رفض المايكروتك الأمر" })
+                                  "!fatal" -> throw IllegalStateException("أغلق المايكروتك اتصال API")
+                                  "!done" -> return rows
+                              }
+                          }
+                      }
+
+                      command(listOf("/login", "=name=$username", "=password=$password"))
+                      val resources = command(listOf("/system/resource/print")).firstOrNull().orEmpty()
+                      val identity = command(listOf("/system/identity/print")).firstOrNull().orEmpty()
+                      val active = command(listOf("/ip/hotspot/active/print"))
+                      fun value(row: List<String>, key: String): String =
+                          row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: "—"
+                      val memTotal = value(resources, "total-memory").toLongOrNull()
+                      val memFree = value(resources, "free-memory").toLongOrNull()
+                      val memory = if (memTotal != null && memFree != null && memTotal > 0) {
+                          "${((memTotal - memFree) * 100 / memTotal)}%"
+                      } else "—"
+                      return mapOf(
+                          "identity" to value(identity, "name"),
+                          "cpu" to (value(resources, "cpu-load").let { if (it == "—") it else "$it%" }),
+                          "memory" to memory,
+                          "uptime" to value(resources, "uptime"),
+                          "active" to active.size.toString()
+                      )
+                  }
+              }
+
+              private fun writeLength(out: BufferedOutputStream, length: Int) {
+                  when {
+                      length < 0x80 -> out.write(length)
+                      length < 0x4000 -> { out.write((length shr 8) or 0x80); out.write(length and 0xff) }
+                      length < 0x200000 -> { out.write((length shr 16) or 0xC0); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
+                      length < 0x10000000 -> { out.write((length shr 24) or 0xE0); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
+                      else -> { out.write(0xF0); out.write((length shr 24) and 0xff); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
+                  }
+              }
+
+              private fun readLength(input: BufferedInputStream): Int {
+                  val b = input.read()
+                  if (b < 0) throw IllegalStateException("انتهى اتصال الراوتر")
+                  return when {
+                      (b and 0x80) == 0 -> b
+                      (b and 0xC0) == 0x80 -> ((b and 0x3f) shl 8) or readByte(input)
+                      (b and 0xE0) == 0xC0 -> ((b and 0x1f) shl 16) or (readByte(input) shl 8) or readByte(input)
+                      (b and 0xF0) == 0xE0 -> ((b and 0x0f) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
+                      else -> { readByte(input); (readByte(input) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input) }
+                  }
+              }
+
+              private fun readByte(input: BufferedInputStream): Int {
+                  val value = input.read()
+                  if (value < 0) throw IllegalStateException("انتهى اتصال الراوتر")
+                  return value
+              }
+          }
+          KOTLIN
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text()
+          s = p.read_text().replace("versionCode = 1", "versionCode = 2").replace('versionName = "0.1.0"', 'versionName = "0.2.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           s += """
 
@@ -61,15 +354,12 @@ jobs:
           }
           """
           p.write_text(s)
-          print("Android Java/Kotlin targets set to 17")
           PY
-
       - name: Build APK
         working-directory: appsrc
         run: gradle assembleDebug
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK
+          name: AlbarqNet-APK-v0.2
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
