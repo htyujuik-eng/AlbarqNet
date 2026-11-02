@@ -30,11 +30,15 @@ jobs:
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
 
+      
+      - name: Fix Java target
+        run: |
+          python3 -c 'from pathlib import Path; p=Path("appsrc/app/build.gradle.kts"); s=p.read_text(); s=s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17"); p.write_text(s); print("Java target fixed:", [x.strip() for x in s.splitlines() if "sourceCompatibility" in x or "targetCompatibility" in x])'
+
       - name: Build APK
         working-directory: appsrc
-        run: |
-          gradle assembleDebug \
-            -Pkotlin.compiler.jvmTarget=17
+        run: gradle assembleDebug
+
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
