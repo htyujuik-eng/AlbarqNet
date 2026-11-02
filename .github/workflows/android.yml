@@ -30,6 +30,15 @@ jobs:
           package com.albarqnet.app
 
           import android.os.Bundle
+          import android.content.Context
+          import android.security.keystore.KeyGenParameterSpec
+          import android.security.keystore.KeyProperties
+          import android.util.Base64
+          import javax.crypto.Cipher
+          import javax.crypto.KeyGenerator
+          import javax.crypto.SecretKey
+          import javax.crypto.spec.GCMParameterSpec
+          import java.security.KeyStore
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
           import androidx.compose.foundation.layout.*
@@ -84,7 +93,9 @@ jobs:
 
           @Composable
           fun AlbarqApp() {
-              val routers = remember { mutableStateListOf<RouterEntry>() }
+              val context = androidx.compose.ui.platform.LocalContext.current
+              val storage = remember { RouterStorage(context) }
+              val routers = remember { mutableStateListOf<RouterEntry>().apply { addAll(storage.load()) } }
               var showAdd by remember { mutableStateOf(false) }
               var busy by remember { mutableStateOf(false) }
               var message by remember { mutableStateOf("أضف الراوتر للبدء") }
@@ -216,6 +227,7 @@ jobs:
                       onDismiss = { showAdd = false },
                       onAdd = { name, host, port, user, pass ->
                           routers.add(RouterEntry(name, host, port, user, pass))
+                          storage.save(routers.toList())
                           showAdd = false
                       }
                   )
@@ -311,6 +323,55 @@ jobs:
                   },
                   dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
               )
+          }
+
+
+          class RouterStorage(private val context: Context) {
+              private val prefs = context.getSharedPreferences("albarq_saved_routers", Context.MODE_PRIVATE)
+              private val alias = "AlbarqNetRouterStorageKey"
+
+              private fun key(): SecretKey {
+                  val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                  (store.getKey(alias, null) as? SecretKey)?.let { return it }
+                  val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+                  generator.init(
+                      KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                          .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                          .setRandomizedEncryptionRequired(true)
+                          .build()
+                  )
+                  return generator.generateKey()
+              }
+
+              fun save(routers: List<RouterEntry>) {
+                  val raw = routers.joinToString("\\n") { router ->
+                      listOf(router.name, router.host, router.port, router.username, router.password)
+                          .joinToString("|") { Base64.encodeToString(it.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) }
+                  }.toByteArray(Charsets.UTF_8)
+                  val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                  cipher.init(Cipher.ENCRYPT_MODE, key())
+                  val encrypted = cipher.doFinal(raw)
+                  val payload = cipher.iv + encrypted
+                  prefs.edit().putString("routers", Base64.encodeToString(payload, Base64.NO_WRAP)).apply()
+              }
+
+              fun load(): List<RouterEntry> {
+                  val encoded = prefs.getString("routers", null) ?: return emptyList()
+                  return runCatching {
+                      val payload = Base64.decode(encoded, Base64.NO_WRAP)
+                      val iv = payload.copyOfRange(0, 12)
+                      val ciphertext = payload.copyOfRange(12, payload.size)
+                      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                      cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+                      String(cipher.doFinal(ciphertext), Charsets.UTF_8).lineSequence()
+                          .filter { it.isNotBlank() }
+                          .mapNotNull { line ->
+                              val fields = line.split("|").map { String(Base64.decode(it, Base64.NO_WRAP), Charsets.UTF_8) }
+                              if (fields.size == 5) RouterEntry(fields[0], fields[1], fields[2], fields[3], fields[4]) else null
+                          }.toList()
+                  }.getOrDefault(emptyList())
+              }
           }
 
           class RouterOsApiClient {
@@ -411,7 +472,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 3").replace('versionName = "0.1.0"', 'versionName = "0.3.0"')
+          s = p.read_text().replace("versionCode = 1", "versionCode = 4").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.4.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           s += """
 
@@ -434,5 +495,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK-v0.3
+          name: AlbarqNet-APK-v0.4
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
