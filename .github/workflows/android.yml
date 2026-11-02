@@ -28,15 +28,18 @@ jobs:
         run: |
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
-
       - name: Fix Java version
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text()
-          s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
-          p.write_text(s)
+
+          files = list(Path("appsrc").rglob("build.gradle.kts"))
+          for p in files:
+              s = p.read_text()
+              s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
+              s = s.replace('jvmTarget = "17"', 'jvmTarget = "1.8"')
+              p.write_text(s)
+              print("Updated:", p)
           PY
           
       - name: Build APK
