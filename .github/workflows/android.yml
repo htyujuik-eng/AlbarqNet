@@ -29,7 +29,7 @@ jobs:
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
 
-      - name: Align Java and Kotlin targets
+      - name: Set Android Java target to 17
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -38,17 +38,19 @@ jobs:
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           s += """
 
-          tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
-              sourceCompatibility = "17"
-              targetCompatibility = "17"
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
           }
 
-          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-              kotlinOptions.jvmTarget = "17"
+          kotlin {
+              jvmToolchain(17)
           }
           """
           p.write_text(s)
-          print("Updated:", p)
+          print("Android Java/Kotlin targets set to 17")
           PY
 
       - name: Build APK
