@@ -29,6 +29,13 @@ jobs:
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
 
+
+      - name: Fix Java version
+        run: |
+          sed -i 's/JavaVersion.VERSION_1_8/
+          JavaVersion.VERSION_17/g' appsrc/app/
+          build.gradle.kts
+          
       - name: Build APK
         working-directory: appsrc
         run: gradle assembleDebug
