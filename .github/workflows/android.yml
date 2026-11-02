@@ -345,7 +345,7 @@ jobs:
               }
 
               fun save(routers: List<RouterEntry>) {
-                  val raw = routers.joinToString("\\n") { router ->
+                  val raw = routers.joinToString("\n") { router ->
                       listOf(router.name, router.host, router.port, router.username, router.password)
                           .joinToString("|") { Base64.encodeToString(it.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) }
                   }.toByteArray(Charsets.UTF_8)
