@@ -28,18 +28,23 @@ jobs:
         run: |
           mkdir appsrc
           unzip -o AlbarqNet.zip -d appsrc
-      - name: Fix Java version
-        run: |
+           
+          - name: Fix Java and Kotlin targets
+           run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          files = list(Path("appsrc").rglob("build.gradle.kts"))
-          for p in files:
-              s = p.read_text()
-              s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
-              s = s.replace('jvmTarget = "17"', 'jvmTarget = "1.8"')
-              p.write_text(s)
-              print("Updated:", p)
+          p = Path("appsrc/app/build.gradle.kts")
+          s = p.read_text()
+
+          s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
+          s = s.replace("JavaVersion.VERSION_1_7", "JavaVersion.VERSION_17")
+
+          if "kotlinOptions" not in s:
+              s += '\n\nkotlin {\n    jvmToolchain(17)\n}\n'
+
+          p.write_text(s)
+          print("Java and Kotlin settings updated")
           PY
           
       - name: Build APK
