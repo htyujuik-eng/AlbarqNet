@@ -246,7 +246,8 @@ jobs:
                   text = {
                       if (router.activeSessions.isEmpty()) Text("لا يوجد مستخدمون متصلون حالياً")
                       else LazyColumn(modifier = Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                          items(router.activeSessions) { user ->
+                          items(count = router.activeSessions.size) { index ->
+                              val user = router.activeSessions[index]
                               Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                                   Column(Modifier.padding(10.dp)) {
                                       Text(user.name.ifBlank { "مستخدم بدون اسم" }, color = Color.White, fontWeight = FontWeight.Bold)
@@ -409,7 +410,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 2").replace('versionName = "0.1.0"', 'versionName = "0.2.0"')
+          s = p.read_text().replace("versionCode = 1", "versionCode = 3").replace('versionName = "0.1.0"', 'versionName = "0.3.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           s += """
 
@@ -432,5 +433,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK-v0.2
+          name: AlbarqNet-APK-v0.3
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
