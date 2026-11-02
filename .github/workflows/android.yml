@@ -70,9 +70,10 @@ jobs:
               var status: String = "غير متصل",
               var identity: String = "—", var cpu: String = "—",
               var memory: String = "—", var uptime: String = "—",
-              var activeUsers: String = "—", var lastError: String = "",
+              var activeUsers: String = "—", var lastError: String = ""
+          ) {
               var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
-          )
+          }
 
           class MainActivity : ComponentActivity() {
               override fun onCreate(savedInstanceState: Bundle?) {
