@@ -62,13 +62,16 @@ jobs:
           private val Cyan = Color(0xFF45D5F5)
           private val Muted = Color(0xFF9CB2C8)
 
+          data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
+
           data class RouterEntry(
               val name: String, val host: String, val port: String,
               val username: String, val password: String,
               var status: String = "غير متصل",
               var identity: String = "—", var cpu: String = "—",
               var memory: String = "—", var uptime: String = "—",
-              var activeUsers: String = "—", var lastError: String = ""
+              var activeUsers: String = "—", var lastError: String = "",
+              var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
           )
 
           class MainActivity : ComponentActivity() {
@@ -84,6 +87,8 @@ jobs:
               var showAdd by remember { mutableStateOf(false) }
               var busy by remember { mutableStateOf(false) }
               var message by remember { mutableStateOf("أضف الراوتر للبدء") }
+              var selectedRouter by remember { mutableStateOf<RouterEntry?>(null) }
+              var usersLoading by remember { mutableStateOf(false) }
               val scope = rememberCoroutineScope()
 
               MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Navy, surface = Panel, onSurface = Color.White)) {
@@ -144,6 +149,26 @@ jobs:
                                               Text("الراوتر: ${router.identity}  •  مدة التشغيل: ${router.uptime}", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                                           }
                                           if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFFA0A0), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                                          OutlinedButton(
+                                              onClick = {
+                                                  scope.launch {
+                                                      usersLoading = true
+                                                      val result = withContext(Dispatchers.IO) {
+                                                          runCatching { RouterOsApiClient().readActiveUsers(router.host, router.port.toInt(), router.username, router.password) }
+                                                      }
+                                                      result.onSuccess { loaded ->
+                                                          router.activeSessions = loaded
+                                                          selectedRouter = router
+                                                          message = "تم تحميل ${loaded.size} مستخدم متصل"
+                                                      }.onFailure { error ->
+                                                          message = error.message ?: "تعذر تحميل المستخدمين"
+                                                      }
+                                                      usersLoading = false
+                                                  }
+                                              },
+                                              enabled = !usersLoading,
+                                              modifier = Modifier.fillMaxWidth()
+                                          ) { Text(if (usersLoading) "جارٍ تحميل المتصلين..." else "مستخدمو الهوتسبوت") }
                                           Button(
                                               onClick = {
                                                   scope.launch {
@@ -193,7 +218,50 @@ jobs:
                           showAdd = false
                       }
                   )
+                  selectedRouter?.let { router ->
+                      ActiveUsersDialog(router, { selectedRouter = null }, { user ->
+                          scope.launch {
+                              usersLoading = true
+                              val result = withContext(Dispatchers.IO) {
+                                  runCatching { RouterOsApiClient().disconnectUser(router.host, router.port.toInt(), router.username, router.password, user.id) }
+                              }
+                              result.onSuccess {
+                                  router.activeSessions = router.activeSessions.filterNot { session -> session.id == user.id }
+                                  router.activeUsers = router.activeSessions.size.toString()
+                                  message = "تم فصل المستخدم ${user.name}"
+                              }.onFailure { error -> message = error.message ?: "تعذر فصل المستخدم" }
+                              usersLoading = false
+                          }
+                      }, usersLoading)
+                  }
               }
+          }
+
+
+          @Composable
+          fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit, onDisconnect: (ActiveHotspotUser) -> Unit, busy: Boolean) {
+              AlertDialog(
+                  onDismissRequest = onDismiss,
+                  title = { Text("المتصلون - ${router.name}") },
+                  text = {
+                      if (router.activeSessions.isEmpty()) Text("لا يوجد مستخدمون متصلون حالياً")
+                      else LazyColumn(modifier = Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                          items(router.activeSessions) { user ->
+                              Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                  Column(Modifier.padding(10.dp)) {
+                                      Text(user.name.ifBlank { "مستخدم بدون اسم" }, color = Color.White, fontWeight = FontWeight.Bold)
+                                      Text("IP: ${user.address} • MAC: ${user.mac}", color = Muted, fontSize = 10.sp)
+                                      Text("مدة الاتصال: ${user.uptime}", color = Muted, fontSize = 11.sp)
+                                      TextButton(onClick = { onDisconnect(user) }, enabled = !busy, modifier = Modifier.align(Alignment.End)) {
+                                          Text("فصل المستخدم", color = Color(0xFFFF9B9B))
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  },
+                  confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
+              )
           }
 
           @Composable
@@ -244,30 +312,26 @@ jobs:
           }
 
           class RouterOsApiClient {
-              fun readStatus(host: String, port: Int, username: String, password: String): Map<String, String> {
+              private fun <T> withApi(host: String, port: Int, username: String, password: String, action: ((List<String>) -> List<List<String>>) -> T): T {
                   require(port in 1..65535) { "رقم المنفذ غير صحيح" }
                   Socket().use { socket ->
                       socket.connect(InetSocketAddress(host, port), 9000)
                       socket.soTimeout = 9000
                       val input = BufferedInputStream(socket.getInputStream())
                       val output = BufferedOutputStream(socket.getOutputStream())
-
                       fun command(words: List<String>): List<List<String>> {
                           words.forEach { word ->
                               val bytes = word.toByteArray(Charsets.UTF_8)
-                              writeLength(output, bytes.size)
-                              output.write(bytes)
+                              writeLength(output, bytes.size); output.write(bytes)
                           }
-                          output.write(0)
-                          output.flush()
+                          output.write(0); output.flush()
                           val rows = mutableListOf<List<String>>()
                           while (true) {
                               val sentence = mutableListOf<String>()
                               while (true) {
                                   val length = readLength(input)
                                   if (length == 0) break
-                                  val bytes = ByteArray(length)
-                                  var offset = 0
+                                  val bytes = ByteArray(length); var offset = 0
                                   while (offset < length) {
                                       val count = input.read(bytes, offset, length - offset)
                                       if (count < 0) throw IllegalStateException("انقطع اتصال API")
@@ -284,25 +348,37 @@ jobs:
                               }
                           }
                       }
-
                       command(listOf("/login", "=name=$username", "=password=$password"))
+                      return action { words -> command(words) }
+                  }
+              }
+
+              fun readStatus(host: String, port: Int, username: String, password: String): Map<String, String> =
+                  withApi(host, port, username, password) { command ->
                       val resources = command(listOf("/system/resource/print")).firstOrNull().orEmpty()
                       val identity = command(listOf("/system/identity/print")).firstOrNull().orEmpty()
                       val active = command(listOf("/ip/hotspot/active/print"))
-                      fun value(row: List<String>, key: String): String =
-                          row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: "—"
-                      val memTotal = value(resources, "total-memory").toLongOrNull()
-                      val memFree = value(resources, "free-memory").toLongOrNull()
-                      val memory = if (memTotal != null && memFree != null && memTotal > 0) {
-                          "${((memTotal - memFree) * 100 / memTotal)}%"
-                      } else "—"
-                      return mapOf(
-                          "identity" to value(identity, "name"),
-                          "cpu" to (value(resources, "cpu-load").let { if (it == "—") it else "$it%" }),
-                          "memory" to memory,
-                          "uptime" to value(resources, "uptime"),
-                          "active" to active.size.toString()
-                      )
+                      fun value(row: List<String>, key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: "—"
+                      val total = value(resources, "total-memory").toLongOrNull()
+                      val free = value(resources, "free-memory").toLongOrNull()
+                      val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
+                      mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
+                          "memory" to memory, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
+                  }
+
+              fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
+                  withApi(host, port, username, password) { command ->
+                      command(listOf("/ip/hotspot/active/print")).map { row ->
+                          fun field(key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
+                          val id = row.firstOrNull { it.startsWith(".id=") }?.substringAfter(".id=") ?: ""
+                          ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"))
+                      }.filter { it.id.isNotBlank() }
+                  }
+
+              fun disconnectUser(host: String, port: Int, username: String, password: String, id: String) {
+                  require(id.startsWith("*")) { "معرّف الجلسة غير صالح" }
+                  withApi(host, port, username, password) { command ->
+                      command(listOf("/ip/hotspot/active/remove", "=.id=$id")); true
                   }
               }
 
@@ -315,23 +391,18 @@ jobs:
                       else -> { out.write(0xF0); out.write((length shr 24) and 0xff); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
                   }
               }
-
               private fun readLength(input: BufferedInputStream): Int {
-                  val b = input.read()
-                  if (b < 0) throw IllegalStateException("انتهى اتصال الراوتر")
+                  val b=input.read(); if(b<0) throw IllegalStateException("انتهى اتصال الراوتر")
                   return when {
-                      (b and 0x80) == 0 -> b
-                      (b and 0xC0) == 0x80 -> ((b and 0x3f) shl 8) or readByte(input)
-                      (b and 0xE0) == 0xC0 -> ((b and 0x1f) shl 16) or (readByte(input) shl 8) or readByte(input)
-                      (b and 0xF0) == 0xE0 -> ((b and 0x0f) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
-                      else -> { readByte(input); (readByte(input) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input) }
+                      (b and 0x80)==0 -> b
+                      (b and 0xC0)==0x80 -> ((b and 0x3f) shl 8) or readByte(input)
+                      (b and 0xE0)==0xC0 -> ((b and 0x1f) shl 16) or (readByte(input) shl 8) or readByte(input)
+                      (b and 0xF0)==0xE0 -> ((b and 0x0f) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
+                      else -> (readByte(input) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
                   }
               }
-
               private fun readByte(input: BufferedInputStream): Int {
-                  val value = input.read()
-                  if (value < 0) throw IllegalStateException("انتهى اتصال الراوتر")
-                  return value
+                  val v=input.read(); if(v<0) throw IllegalStateException("انتهى اتصال الراوتر"); return v
               }
           }
           KOTLIN
