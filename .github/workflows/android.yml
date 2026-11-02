@@ -505,7 +505,7 @@ jobs:
                   try {
                       val host=openWrtSsh(ip,pw,"cat /proc/sys/kernel/hostname").ifBlank{"OpenWrt"}
                       val model=openWrtSsh(ip,pw,"cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name").ifBlank{"غير معروف"}
-                      val clientsCmd="for i in \$(iw dev 2>/dev/null | awk '/Interface/{print \\$2}'); do iw dev \\$i station dump 2>/dev/null | awk '/^Station /{print \\$2}'; done | sort -u | while read mac; do [ -n \\$mac ] || continue; ip=\$(ip neigh show | awk -v m=\\$mac 'tolower(\\$5)==tolower(m){print \\$1;exit}'); name=\$(awk -v m=\\$mac 'tolower(\\$2)==tolower(m){print \\$4;exit}' /tmp/dhcp.leases 2>/dev/null); echo \\$mac'|'\\\${ip:-—}'|'\\\${name:-—}; done"
+                      val clientsCmd = "iw dev | awk '/Interface/{print \\$2}' | while read iface; do iw dev \\$iface station dump 2>/dev/null | awk '/^Station /{print \\$2}'; done | sort -u | while read clientmac; do [ -n \\$clientmac ] || continue; clientip=\$(ip neigh show | awk -v m=\$clientmac 'tolower(\$5)==tolower(m){print \$1;exit}'); clientname=\$(awk -v m=\$clientmac 'tolower(\$2)==tolower(m){print \$4;exit}' /tmp/dhcp.leases 2>/dev/null); printf '%s|%s|%s\\n' \\$clientmac "${clientip:-—}" "${clientname:-—}"; done"
                       val clientRaw=runCatching{openWrtSsh(ip,pw,clientsCmd)}.getOrDefault("")
                       val clientList=clientRaw.lines().mapNotNull { line ->
                           val parts=line.split("|")
