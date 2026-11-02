@@ -475,7 +475,8 @@ jobs:
           }
 
           
-          data class OpenWrtDevice(val ip:String,val state:String,val host:String="—",val model:String="—",val clients:String="غير متاح")
+          data class OpenWrtClient(val mac:String,val ip:String,val name:String,val deviceType:String="غير محدد")
+          data class OpenWrtDevice(val ip:String,val state:String,val host:String="—",val model:String="—",val clients:String="غير متاح",val clientDetails:List<OpenWrtClient> = emptyList())
           class OpenWrtPasswordStore(c:Context) {
               private val prefs=c.getSharedPreferences("albarq_openwrt",Context.MODE_PRIVATE)
               private val alias="AlbarqOpenWrtKey"
@@ -504,9 +505,14 @@ jobs:
                   try {
                       val host=openWrtSsh(ip,pw,"cat /proc/sys/kernel/hostname").ifBlank{"OpenWrt"}
                       val model=openWrtSsh(ip,pw,"cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name").ifBlank{"غير معروف"}
-                      val countCmd="iw dev 2>/dev/null | awk '/Interface/{print \\\$2}' | while read i; do iw dev \\\$i station dump 2>/dev/null; done | awk '/^Station /{print \\\$2}' | sort -u | wc -l"
-                      val count=runCatching{openWrtSsh(ip,pw,countCmd)}.getOrNull()?.takeIf{it.matches(Regex("\\\\d+"))} ?: "غير متاح"
-                      list.add(OpenWrtDevice(ip,"دخول ناجح",host.lines().first(),model.lines().first(),count))
+                      val clientsCmd="for i in \$(iw dev 2>/dev/null | awk '/Interface/{print \\$2}'); do iw dev \\$i station dump 2>/dev/null | awk '/^Station /{print \\$2}'; done | sort -u | while read mac; do [ -n \\$mac ] || continue; ip=\$(ip neigh show | awk -v m=\\$mac 'tolower(\\$5)==tolower(m){print \\$1;exit}'); name=\$(awk -v m=\\$mac 'tolower(\\$2)==tolower(m){print \\$4;exit}' /tmp/dhcp.leases 2>/dev/null); echo \\$mac'|'\\\${ip:-—}'|'\\\${name:-—}; done"
+                      val clientRaw=runCatching{openWrtSsh(ip,pw,clientsCmd)}.getOrDefault("")
+                      val clientList=clientRaw.lines().mapNotNull { line ->
+                          val parts=line.split("|")
+                          if(parts.size>=3 && parts[0].matches(Regex("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}"))) OpenWrtClient(parts[0],parts[1],parts[2]) else null
+                      }.distinctBy{it.mac}
+                      val count=clientList.size.toString()
+                      list.add(OpenWrtDevice(ip,"دخول ناجح",host.lines().first(),model.lines().first(),count,clientList))
                   } catch(e:Exception) {
                       val reachable=runCatching{Socket().use{it.connect(InetSocketAddress(ip,22),500)};true}.getOrDefault(false)
                       if(reachable) list.add(OpenWrtDevice(ip,"SSH متاح؛ تعذر تسجيل الدخول"))
@@ -532,7 +538,12 @@ jobs:
                               Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
                                   Column(Modifier.padding(8.dp)) {
                                       Text(dev.ip+" • "+dev.state,color=Color.White,fontSize=12.sp)
-                                      if(dev.host!="—") Text(dev.host+" | "+dev.model+" | أجهزة لاسلكية: "+dev.clients,color=Muted,fontSize=11.sp)
+                                      if(dev.host!="—") {
+                                          Text(dev.host+" | "+dev.model+" | أجهزة لاسلكية: "+dev.clients,color=Muted,fontSize=11.sp)
+                                          dev.clientDetails.forEach { phone ->
+                                              Text("📱 "+phone.name+" • "+phone.ip+" • "+phone.mac+" • النوع: "+phone.deviceType,color=Color.White,fontSize=10.sp)
+                                          }
+                                      }
                                   }
                               }
                           }
@@ -553,7 +564,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 5").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.5.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
+          s = p.read_text().replace("versionCode = 1", "versionCode = 6").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.6.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           if "com.github.mwiede:jsch" not in s:
               s = s.replace("dependencies {", 'dependencies {\\n    implementation("com.github.mwiede:jsch:0.2.20")', 1)
@@ -578,5 +589,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK-v0.5
+          name: AlbarqNet-APK-v0.6
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
