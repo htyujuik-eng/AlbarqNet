@@ -53,6 +53,9 @@ jobs:
           import androidx.compose.material.icons.filled.Settings
           import androidx.compose.material.icons.filled.Assessment
           import androidx.compose.material.icons.filled.Devices
+          import androidx.compose.material.icons.filled.Home
+          import androidx.compose.material.icons.filled.Storage
+          import androidx.compose.material.icons.filled.Info
           import androidx.compose.material3.*
           import androidx.compose.runtime.*
           import androidx.compose.ui.Alignment
@@ -114,6 +117,9 @@ jobs:
               var selectedRouter by remember { mutableStateOf<RouterEntry?>(null) }
               var usersLoading by remember { mutableStateOf(false) }
               var showOpenWrt by remember { mutableStateOf(false) }
+              var showSettings by remember { mutableStateOf(false) }
+              var showReports by remember { mutableStateOf(false) }
+              var showRouters by remember { mutableStateOf(false) }
               var tab by remember { mutableStateOf("الرئيسية") }
               val scope = rememberCoroutineScope()
               val totalActive = routers.sumOf { it.activeUsers.toIntOrNull() ?: 0 }
@@ -178,8 +184,20 @@ jobs:
                       bottomBar = {
                           NavigationBar(containerColor = Color(0xFF19192D), contentColor = Color.White) {
                               listOf("الإعدادات", "التقارير", "الراوترات", "الرئيسية").forEach { item ->
-                                  NavigationBarItem(selected = tab == item, onClick = { tab = item },
-                                      icon = { Text(when(item) { "الإعدادات" -> "⚙"; "التقارير" -> "▥"; "الراوترات" -> "▣"; else -> "⌂" }, fontSize = 20.sp) },
+                                  NavigationBarItem(selected = tab == item, onClick = {
+                                      tab = item
+                                      when(item) {
+                                          "الإعدادات" -> showSettings = true
+                                          "التقارير" -> showReports = true
+                                          "الراوترات" -> showRouters = true
+                                      }
+                                  },
+                                      icon = { Icon(when(item) {
+                                          "الإعدادات" -> Icons.Default.Settings
+                                          "التقارير" -> Icons.Default.Assessment
+                                          "الراوترات" -> Icons.Default.Router
+                                          else -> Icons.Default.Home
+                                      }, contentDescription = item) },
                                       label = { Text(item, fontSize = 10.sp) })
                               }
                           }
@@ -193,7 +211,9 @@ jobs:
                           item {
                               Row(verticalAlignment = Alignment.CenterVertically) {
                                   Surface(color = Color(0xFF22223A), shape = RoundedCornerShape(18.dp)) {
-                                      Icon(Icons.Default.Menu, contentDescription = "القائمة", tint = Color.White, modifier = Modifier.padding(horizontal = 12.dp).size(26.dp))
+                                      IconButton(onClick = { showRouters = true; tab = "الراوترات" }) {
+                                      Icon(Icons.Default.Menu, contentDescription = "قائمة الراوترات", tint = Color.White, modifier = Modifier.padding(horizontal = 12.dp).size(26.dp))
+                                  }
                                   }
                                   Spacer(Modifier.weight(1f))
                                   Column(horizontalAlignment = Alignment.End) {
@@ -206,7 +226,9 @@ jobs:
                                   }
                                   Spacer(Modifier.width(12.dp))
                                   Surface(color = Color(0xFF22223A), shape = RoundedCornerShape(18.dp)) {
-                                      Icon(Icons.Default.Settings, contentDescription = "الإعدادات", tint = Color(0xFF7665F5), modifier = Modifier.padding(12.dp).size(24.dp))
+                                      IconButton(onClick = { showSettings = true; tab = "الإعدادات" }) {
+                                      Icon(Icons.Default.Settings, contentDescription = "فتح الإعدادات", tint = Color(0xFF7665F5), modifier = Modifier.padding(12.dp).size(24.dp))
+                                  }
                                   }
                               }
                           }
@@ -365,6 +387,31 @@ jobs:
                       }
                   }
                   if (showOpenWrt) OpenWrtDialog(context, { showOpenWrt = false })
+                  if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("إعدادات التطبيق") }, text = {
+                      Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                          Text("البرق نت — وضع مراقبة وقراءة فقط", color = Color.White)
+                          Text("التحديث المباشر: ${if(liveSync) "مفعّل كل 3 ثوانٍ" else "متوقف"}", color = Muted)
+                          Text("عدد الراوترات المحفوظة: ${routers.size}", color = Muted)
+                          Text("واجهة قياس حركة البيانات: ether1", color = Muted)
+                          Text("لا يقوم التطبيق بتغيير أي إعداد في الراوتر.", color = Color(0xFF55C978))
+                      }
+                  }, confirmButton = { TextButton(onClick = { liveSync = !liveSync }) { Text(if(liveSync) "إيقاف المباشر" else "تشغيل المباشر") } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("إغلاق") } })
+                  if (showReports) AlertDialog(onDismissRequest = { showReports = false }, title = { Text("تقارير الحالة الحالية") }, text = {
+                      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                          Text("الراوترات المتصلة: $onlineRouters / ${routers.size}")
+                          Text("مستخدمو ACTIVE: $totalActive")
+                          Text("أجهزة HOST: $totalHosts")
+                          routers.forEach { r -> Text("${r.name}: CPU ${r.cpu} • RAM ${r.memory} • تخزين ${r.storage}", color = Muted, fontSize = 12.sp) }
+                          Text("هذه قراءة لحظية وليست تقريراً تاريخياً.", color = Cyan, fontSize = 11.sp)
+                      }
+                  }, confirmButton = { TextButton(onClick = { showReports = false }) { Text("إغلاق") } })
+                  if (showRouters) AlertDialog(onDismissRequest = { showRouters = false }, title = { Text("الراوترات المحفوظة") }, text = {
+                      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                          if (routers.isEmpty()) Text("لم تتم إضافة أي راوتر بعد.")
+                          routers.forEach { r -> Text("${r.name} • ${r.host} • ${r.status}", color = Color.White) }
+                          Text("إضافة راوتر جديد من زر +.", color = Muted, fontSize = 11.sp)
+                      }
+                  }, confirmButton = { TextButton(onClick = { showRouters = false }) { Text("إغلاق") } })
                   if (showAdd) AddRouterDialog(
                       onDismiss = { showAdd = false },
                       onAdd = { name, host, port, user, pass ->
@@ -380,8 +427,14 @@ jobs:
           @Composable
           fun ResourceTile(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
               Surface(color = Color(0xFF202B4C), shape = RoundedCornerShape(18.dp), modifier = modifier) {
-                  Column(Modifier.padding(vertical = 14.dp, horizontal = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                      Text(value, color = accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                  Column(Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 5.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                      Text(value, color = accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                      val percent = value.filter { it.isDigit() }.toFloatOrNull()?.coerceIn(0f, 100f)
+                      if (percent != null && value.contains("%")) {
+                          CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(38.dp), color = accent, trackColor = accent.copy(alpha = .18f), strokeWidth = 4.dp)
+                      } else {
+                          CircularProgressIndicator(progress = { 0f }, modifier = Modifier.size(38.dp), color = accent.copy(alpha = .35f), trackColor = accent.copy(alpha = .18f), strokeWidth = 4.dp)
+                      }
                       Text(label, color = Muted, fontSize = 11.sp)
                   }
               }
@@ -598,7 +651,7 @@ jobs:
                       val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
                       val diskTotal = value(resources, "total-hdd-space").toLongOrNull()
                       val diskFree = value(resources, "free-hdd-space").toLongOrNull()
-                      val storage = if (diskTotal != null && diskFree != null && diskTotal > 0) "${((diskTotal-diskFree)/1048576)} / ${diskTotal/1048576} MB" else "غير مدعوم"
+                      val storage = if (diskTotal != null && diskFree != null && diskTotal > 0) "${((diskTotal-diskFree)*100/diskTotal)}%" else "غير مدعوم"
                       mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
                           "memory" to memory, "storage" to storage, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
                   }
