@@ -127,7 +127,7 @@ jobs:
                           Spacer(Modifier.height(18.dp))
                           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                               SummaryCard("عدد الراوترات", routers.size.toString(), Modifier.weight(1f))
-                              SummaryCard("المتصلون", routers.sumOf { it.activeUsers.toIntOrNull() ?: 0 }.toString(), Modifier.weight(1f))
+                              SummaryCard("إجمالي الأجهزة المتصلة", routers.sumOf { it.activeUsers.toIntOrNull() ?: 0 }.toString(), Modifier.weight(1f))
                           }
                           Spacer(Modifier.height(16.dp))
                           Text("أجهزة MikroTik", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
@@ -159,7 +159,7 @@ jobs:
                                           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                               InfoChip("CPU", router.cpu)
                                               InfoChip("RAM", router.memory)
-                                              InfoChip("Hotspot", router.activeUsers)
+                                              InfoChip("الأجهزة المتصلة", router.activeUsers)
                                           }
                                           if (router.identity != "—") {
                                               Text("الراوتر: ${router.identity}  •  مدة التشغيل: ${router.uptime}", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
@@ -215,7 +215,7 @@ jobs:
                                           ) {
                                               Icon(Icons.Default.Refresh, null)
                                               Spacer(Modifier.width(6.dp))
-                                              Text(if (busy) "جارٍ الفحص..." else "اتصال / تحديث البيانات")
+                                              Text(if (busy) "جارٍ الفحص..." else "تحديث الحالة والعدد")
                                           }
                                       }
                                   }
@@ -543,7 +543,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 7").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.7.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
+          s = p.read_text().replace("versionCode = 1", "versionCode = 8").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.8.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           if "com.github.mwiede:jsch" not in s:
               s = s.replace("dependencies {", 'dependencies {\n    implementation("com.github.mwiede:jsch:0.2.20")', 1)
@@ -568,5 +568,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK-v0.7
+          name: AlbarqNet-APK-v0.8
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
