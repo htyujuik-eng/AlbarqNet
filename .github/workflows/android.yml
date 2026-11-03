@@ -28,7 +28,7 @@ jobs:
         run: |
           cat > appsrc/app/src/main/java/com/albarqnet/app/MainActivity.kt <<'KOTLIN'
           package com.albarqnet.app
-
+          
           import android.os.Bundle
           import android.content.Context
           import android.security.keystore.KeyGenParameterSpec
@@ -68,15 +68,15 @@ jobs:
           import com.jcraft.jsch.JSch
           import com.jcraft.jsch.ChannelExec
           import java.util.Properties
-
+          
           private val Navy = Color(0xFF071629)
           private val Panel = Color(0xFF102B45)
           private val Cyan = Color(0xFF45D5F5)
           private val Muted = Color(0xFF9CB2C8)
-
+          
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
           data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String)
-
+          
           data class RouterEntry(
               val name: String, val host: String, val port: String,
               val username: String, val password: String,
@@ -89,14 +89,14 @@ jobs:
               var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
               var hostEntries by mutableStateOf<List<HotspotHost>>(emptyList())
           }
-
+          
           class MainActivity : ComponentActivity() {
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContent { AlbarqApp() }
               }
           }
-
+          
           @Composable
           fun AlbarqApp() {
               val context = androidx.compose.ui.platform.LocalContext.current
@@ -113,7 +113,7 @@ jobs:
               val totalActive = routers.sumOf { it.activeUsers.toIntOrNull() ?: 0 }
               val totalHosts = routers.sumOf { it.hostEntries.size }
               val onlineRouters = routers.count { it.status == "متصل" }
-
+          
               MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF7665F5), background = Color(0xFF090914), surface = Color(0xFF182341), onSurface = Color.White)) {
                   Scaffold(
                       containerColor = Color(0xFF090914),
@@ -183,21 +183,40 @@ jobs:
                                   TextButton(onClick = {
                                       scope.launch {
                                           busy = true
-                                          routers.forEach { router ->
-                                              val result = withContext(Dispatchers.IO) { runCatching { RouterOsApiClient().readStatus(router.host, router.port.toInt(), router.username, router.password) } }
-                                              result.onSuccess { data ->
-                                                  router.status = "متصل"; router.identity = data["identity"] ?: "—"
-                                                  router.cpu = data["cpu"] ?: "—"; router.memory = data["memory"] ?: "—"
-                                                  router.uptime = data["uptime"] ?: "—"; router.activeUsers = data["active"] ?: "0"; router.lastError = ""
-                                                  router.hostEntries = RouterOsApiClient().readHosts(router.host, router.port.toInt(), router.username, router.password)
-                                                  router.activeSessions = RouterOsApiClient().readActiveUsers(router.host, router.port.toInt(), router.username, router.password)
-                                                  val traffic = RouterOsApiClient().readTraffic(router.host, router.port.toInt(), router.username, router.password)
-                                                  router.uploadRate = traffic["upload"] ?: "غير متاح"
-                                                  router.downloadRate = traffic["download"] ?: "غير متاح"
-                                              }.onFailure { router.status = "فشل الاتصال"; router.lastError = it.message ?: "تعذر الاتصال" }
+                                          try {
+                                              routers.toList().forEach { router ->
+                                                  val result = withContext(Dispatchers.IO) {
+                                                      runCatching {
+                                                          val api = RouterOsApiClient()
+                                                          val portNumber = router.port.toInt()
+                                                          val status = api.readStatus(router.host, portNumber, router.username, router.password)
+                                                          val hosts = api.readHosts(router.host, portNumber, router.username, router.password)
+                                                          val active = api.readActiveUsers(router.host, portNumber, router.username, router.password)
+                                                          val traffic = api.readTraffic(router.host, portNumber, router.username, router.password)
+                                                          Triple(status, hosts to active, traffic)
+                                                      }
+                                                  }
+                                                  result.onSuccess { data ->
+                                                      router.status = "متصل"
+                                                      router.identity = data.first["identity"] ?: "—"
+                                                      router.cpu = data.first["cpu"] ?: "—"
+                                                      router.memory = data.first["memory"] ?: "—"
+                                                      router.uptime = data.first["uptime"] ?: "—"
+                                                      router.activeUsers = data.first["active"] ?: "0"
+                                                      router.hostEntries = data.second.first
+                                                      router.activeSessions = data.second.second
+                                                      router.uploadRate = data.third["upload"] ?: "غير متاح"
+                                                      router.downloadRate = data.third["download"] ?: "غير متاح"
+                                                      router.lastError = ""
+                                                  }.onFailure {
+                                                      router.status = "فشل الاتصال"
+                                                      router.lastError = it.message ?: "تعذر الاتصال"
+                                                  }
+                                              }
+                                              message = "اكتمل تحديث بيانات الراوترات"
+                                          } finally {
+                                              busy = false
                                           }
-                                          message = "اكتمل تحديث بيانات الراوترات"
-                                          busy = false
                                       }
                                   }, enabled = !busy) { Text(if (busy) "جارٍ التحديث" else "⟳ تحديث", color = Color(0xFF7665F5)) }
                               }
@@ -317,7 +336,7 @@ jobs:
                   selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }
               }
           }
-
+          
           @Composable
           fun ResourceTile(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
               Surface(color = Color(0xFF202B4C), shape = RoundedCornerShape(18.dp), modifier = modifier) {
@@ -327,7 +346,7 @@ jobs:
                   }
               }
           }
-
+          
           @Composable
           fun TrafficTile(label: String, value: String, background: Color, accent: Color, modifier: Modifier = Modifier) {
               Surface(color = background, shape = RoundedCornerShape(16.dp), modifier = modifier) {
@@ -337,7 +356,7 @@ jobs:
                   }
               }
           }
-
+          
           @Composable
           fun StatTile(label: String, value: String, symbol: String, accent: Color, modifier: Modifier = Modifier) {
               Surface(color = Color(0xFF182341), shape = RoundedCornerShape(20.dp), modifier = modifier) {
@@ -348,7 +367,7 @@ jobs:
                   }
               }
           }
-
+          
           @Composable
           fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
               var page by remember { mutableStateOf("ACTIVE") }
@@ -389,7 +408,7 @@ jobs:
                   }
               },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
           }
-
+          
           @Composable
           fun SummaryCard(title: String, value: String, modifier: Modifier = Modifier) {
               Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = modifier) {
@@ -399,14 +418,14 @@ jobs:
                   }
               }
           }
-
+          
           @Composable
           fun InfoChip(label: String, value: String) {
               Surface(color = Navy, shape = RoundedCornerShape(10.dp)) {
                   Text("$label: $value", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
               }
           }
-
+          
           @Composable
           fun AddRouterDialog(onDismiss: () -> Unit, onAdd: (String, String, String, String, String) -> Unit) {
               var name by remember { mutableStateOf("المايكروتك الرئيسي") }
@@ -436,12 +455,12 @@ jobs:
                   dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
               )
           }
-
-
+          
+          
           class RouterStorage(private val context: Context) {
               private val prefs = context.getSharedPreferences("albarq_saved_routers", Context.MODE_PRIVATE)
               private val alias = "AlbarqNetRouterStorageKey"
-
+          
               private fun key(): SecretKey {
                   val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
                   (store.getKey(alias, null) as? SecretKey)?.let { return it }
@@ -455,7 +474,7 @@ jobs:
                   )
                   return generator.generateKey()
               }
-
+          
               fun save(routers: List<RouterEntry>) {
                   val raw = routers.joinToString("\n") { router ->
                       listOf(router.name, router.host, router.port, router.username, router.password)
@@ -467,7 +486,7 @@ jobs:
                   val payload = cipher.iv + encrypted
                   prefs.edit().putString("routers", Base64.encodeToString(payload, Base64.NO_WRAP)).apply()
               }
-
+          
               fun load(): List<RouterEntry> {
                   val encoded = prefs.getString("routers", null) ?: return emptyList()
                   return runCatching {
@@ -485,7 +504,7 @@ jobs:
                   }.getOrDefault(emptyList())
               }
           }
-
+          
           class RouterOsApiClient {
               private fun <T> withApi(host: String, port: Int, username: String, password: String, action: ((List<String>) -> List<List<String>>) -> T): T {
                   require(port in 1..65535) { "رقم المنفذ غير صحيح" }
@@ -527,7 +546,7 @@ jobs:
                       return action { words -> command(words) }
                   }
               }
-
+          
               fun readStatus(host: String, port: Int, username: String, password: String): Map<String, String> =
                   withApi(host, port, username, password) { command ->
                       val resources = command(listOf("/system/resource/print")).firstOrNull().orEmpty()
@@ -540,7 +559,7 @@ jobs:
                       mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
                           "memory" to memory, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
                   }
-
+          
               fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
                   withApi(host,port,username,password) { command ->
                       command(listOf("/ip/hotspot/host/print")).map { row ->
@@ -548,7 +567,7 @@ jobs:
                           HotspotHost(field("address"),field("mac-address"),field("server"),field("uptime"),field("bridge-port"))
                       }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
                   }
-
+          
               fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
                   withApi(host,port,username,password) { command ->
                       fun totals():Pair<Long,Long> {
@@ -573,7 +592,7 @@ jobs:
                       mapOf("upload" to format(second.second-first.second),
                           "download" to format(second.first-first.first))
                   }
-
+          
               fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
                   withApi(host, port, username, password) { command ->
                       command(listOf("/ip/hotspot/active/print")).map { row ->
@@ -582,9 +601,9 @@ jobs:
                           ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"))
                       }.filter { it.id.isNotBlank() }
                   }
-
-
-
+          
+          
+          
               private fun writeLength(out: BufferedOutputStream, length: Int) {
                   when {
                       length < 0x80 -> out.write(length)
@@ -608,7 +627,7 @@ jobs:
                   val v=input.read(); if(v<0) throw IllegalStateException("انتهى اتصال الراوتر"); return v
               }
           }
-
+          
           
           data class OpenWrtClient(val mac:String,val ip:String,val name:String,val deviceType:String="غير محدد")
           data class OpenWrtDevice(val ip:String,val state:String,val host:String="—",val model:String="—",val clients:String="غير متاح",val clientDetails:List<OpenWrtClient> = emptyList())
@@ -694,7 +713,7 @@ jobs:
                   }
               }){Text(if(busy)"جارٍ الفحص..." else "حفظ وفحص")}},dismissButton={TextButton(onClick=onClose){Text("إغلاق")}})
           }
-
+          
           KOTLIN
           python3 - <<'PY'
           from pathlib import Path
