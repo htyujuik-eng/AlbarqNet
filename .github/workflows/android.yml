@@ -83,7 +83,7 @@ jobs:
           private val Muted = Color(0xFF9CB2C8)
           
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
-          data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String)
+          data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String,val deviceName:String="غير معروف")
           
           data class RouterEntry(
               val name: String, val host: String, val port: String,
@@ -488,11 +488,18 @@ jobs:
                           else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                               items(router.hostEntries) { device ->
                                   Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
-                                      Column(Modifier.padding(9.dp)) {
-                                          Text(device.address.ifBlank{"IP غير معروف"},color=Color.White,fontWeight=FontWeight.Bold)
-                                          Text("MAC: ${device.mac}",color=Muted,fontSize=10.sp)
-                                          Text("السيرفر: ${device.server.ifBlank{"—"}}  •  المنفذ: ${device.interfaceName.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
-                                          Text("المدة: ${device.uptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                      Column(Modifier.padding(10.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                                          Row(verticalAlignment=Alignment.CenterVertically) {
+                                              Text(device.deviceName.ifBlank{"غير معروف"},color=Color.White,fontWeight=FontWeight.Bold,fontSize=14.sp)
+                                              Spacer(Modifier.weight(1f))
+                                              Text("HOST",color=Cyan,fontSize=10.sp)
+                                          }
+                                          Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()) {
+                                              InfoChip("المنفذ",device.interfaceName.ifBlank{"—"})
+                                              InfoChip("MAC",device.mac.ifBlank{"—"})
+                                          }
+                                          Text("عنوان IP: ${device.address.ifBlank{"غير معروف"}}",color=Color(0xFF55C978),fontSize=12.sp,fontWeight=FontWeight.SemiBold)
+                                          Text("السيرفر: ${device.server.ifBlank{"—"}}  •  المدة: ${device.uptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
                                       }
                                   }
                               }
@@ -658,9 +665,19 @@ jobs:
           
               fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
                   withApi(host,port,username,password) { command ->
+                      val leases = runCatching { command(listOf("/ip/dhcp-server/lease/print")) }.getOrDefault(emptyList())
+                      val namesByMac = leases.mapNotNull { lease ->
+                          fun field(key:String)=lease.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                          val mac=field("mac-address").lowercase()
+                          val name=field("host-name").ifBlank { field("comment") }
+                          if(mac.isNotBlank() && name.isNotBlank()) mac to name else null
+                      }.toMap()
                       command(listOf("/ip/hotspot/host/print")).map { row ->
                           fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
-                          HotspotHost(field("address"),field("mac-address"),field("server"),field("uptime"),field("bridge-port"))
+                          val mac=field("mac-address")
+                          val bridgePort=field("bridge-port")
+                          val deviceName=namesByMac[mac.lowercase()] ?: "غير معروف"
+                          HotspotHost(field("address"),mac,field("server"),field("uptime"),bridgePort.ifBlank{"—"},deviceName)
                       }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
                   }
           
