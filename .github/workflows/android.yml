@@ -75,6 +75,7 @@ jobs:
           private val Muted = Color(0xFF9CB2C8)
 
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
+data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String)
 
           data class RouterEntry(
               val name: String, val host: String, val port: String,
@@ -85,6 +86,7 @@ jobs:
               var activeUsers: String = "—", var lastError: String = ""
           ) {
               var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
+              var hostEntries by mutableStateOf<List<HotspotHost>>(emptyList())
           }
 
           class MainActivity : ComponentActivity() {
@@ -108,6 +110,7 @@ jobs:
               var tab by remember { mutableStateOf("الرئيسية") }
               val scope = rememberCoroutineScope()
               val totalActive = routers.sumOf { it.activeUsers.toIntOrNull() ?: 0 }
+              val totalHosts = routers.sumOf { it.hostEntries.size }
               val onlineRouters = routers.count { it.status == "متصل" }
 
               MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF7665F5), background = Color(0xFF090914), surface = Color(0xFF182341), onSurface = Color.White)) {
@@ -185,6 +188,8 @@ jobs:
                                                   router.status = "متصل"; router.identity = data["identity"] ?: "—"
                                                   router.cpu = data["cpu"] ?: "—"; router.memory = data["memory"] ?: "—"
                                                   router.uptime = data["uptime"] ?: "—"; router.activeUsers = data["active"] ?: "0"; router.lastError = ""
+                                                  router.hostEntries = RouterOsApiClient().readHosts(router.host, router.port.toInt(), router.username, router.password)
+                                                  router.activeSessions = RouterOsApiClient().readActiveUsers(router.host, router.port.toInt(), router.username, router.password)
                                               }.onFailure { router.status = "فشل الاتصال"; router.lastError = it.message ?: "تعذر الاتصال" }
                                           }
                                           message = "اكتمل تحديث بيانات الراوترات"
@@ -234,11 +239,11 @@ jobs:
                                       StatTile("الراوترات", routers.size.toString(), "▣", Color(0xFFFFA21A), Modifier.weight(1f))
                                   }
                                   Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                      StatTile("الأجهزة المكتشفة", "—", "⌁", Color(0xFF39A9F5), Modifier.weight(1f))
+                                      StatTile("أجهزة HOST", totalHosts.toString(), "⌁", Color(0xFF39A9F5), Modifier.weight(1f))
                                       StatTile("جلسات الهوتسبوت", totalActive.toString(), "◷", Color(0xFF7665F5), Modifier.weight(1f))
                                   }
                               }
-                              Text("الأجهزة المكتشفة ستظهر بعد إضافة قراءة جدول HOST.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                              Text("HOST يعرض الأجهزة التي يتعرف عليها Hotspot في الميكروتك.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
                           }
                           item {
                               Row(verticalAlignment = Alignment.CenterVertically) {
@@ -342,26 +347,43 @@ jobs:
 
           @Composable
           fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
-              AlertDialog(
-                  onDismissRequest = onDismiss,
-                  title = { Text("المتصلون - ${router.name}") },
-                  text = {
-                      if (router.activeSessions.isEmpty()) Text("لا يوجد مستخدمون متصلون حالياً")
-                      else LazyColumn(modifier = Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                          items(count = router.activeSessions.size) { index ->
-                              val user = router.activeSessions[index]
-                              Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                                  Column(Modifier.padding(10.dp)) {
-                                      Text(user.name.ifBlank { "مستخدم بدون اسم" }, color = Color.White, fontWeight = FontWeight.Bold)
-                                      Text("IP: ${user.address} • MAC: ${user.mac}", color = Muted, fontSize = 10.sp)
-                                      Text("مدة الاتصال: ${user.uptime}", color = Muted, fontSize = 11.sp)
+              var page by remember { mutableStateOf("ACTIVE") }
+              AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
+                  Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                      Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                          FilterChip(selected=page=="ACTIVE",onClick={page="ACTIVE"},label={Text("ACTIVE (${router.activeSessions.size})")})
+                          FilterChip(selected=page=="HOST",onClick={page="HOST"},label={Text("HOST (${router.hostEntries.size})")})
+                      }
+                      if(page=="ACTIVE") {
+                          if(router.activeSessions.isEmpty()) Text("لا يوجد مستخدمون نشطون حالياً")
+                          else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                              items(router.activeSessions) { user ->
+                                  Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
+                                      Column(Modifier.padding(9.dp)) {
+                                          Text(user.name.ifBlank{"بدون اسم"},color=Color.White,fontWeight=FontWeight.Bold)
+                                          Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
+                                          Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
+                                      }
+                                  }
+                              }
+                          }
+                      } else {
+                          if(router.hostEntries.isEmpty()) Text("لا توجد أجهزة HOST ظاهرة حالياً")
+                          else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                              items(router.hostEntries) { device ->
+                                  Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
+                                      Column(Modifier.padding(9.dp)) {
+                                          Text(device.address.ifBlank{"IP غير معروف"},color=Color.White,fontWeight=FontWeight.Bold)
+                                          Text("MAC: ${device.mac}",color=Muted,fontSize=10.sp)
+                                          Text("السيرفر: ${device.server.ifBlank{"—"}}  •  المنفذ: ${device.interfaceName.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                          Text("المدة: ${device.uptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                      }
                                   }
                               }
                           }
                       }
-                  },
-                  confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
-              )
+                  }
+              },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
           }
 
           @Composable
@@ -513,6 +535,14 @@ jobs:
                       val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
                       mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
                           "memory" to memory, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
+                  }
+
+              fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
+                  withApi(host,port,username,password) { command ->
+                      command(listOf("/ip/hotspot/host/print")).map { row ->
+                          fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                          HotspotHost(field("address"),field("mac-address"),field("server"),field("uptime"),field("bridge-port"))
+                      }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
                   }
 
               fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
