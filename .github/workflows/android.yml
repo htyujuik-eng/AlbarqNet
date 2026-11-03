@@ -75,7 +75,7 @@ jobs:
           private val Muted = Color(0xFF9CB2C8)
 
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
-data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String)
+          data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String)
 
           data class RouterEntry(
               val name: String, val host: String, val port: String,
