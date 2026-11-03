@@ -557,7 +557,7 @@ jobs:
                               fun field(k:String)=row.firstOrNull{it.startsWith("=$k=")}?.substringAfter("=$k=")?.toLongOrNull() ?: 0L
                               rx+=field("rx-byte"); tx+=field("tx-byte")
                           }
-                          rx to tx
+                          return rx to tx
                       }
                       val first=totals()
                       Thread.sleep(1100)
