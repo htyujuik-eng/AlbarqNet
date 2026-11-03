@@ -49,6 +49,10 @@ jobs:
           import androidx.compose.material.icons.filled.Add
           import androidx.compose.material.icons.filled.Router
           import androidx.compose.material.icons.filled.Refresh
+          import androidx.compose.material.icons.filled.Menu
+          import androidx.compose.material.icons.filled.Settings
+          import androidx.compose.material.icons.filled.Assessment
+          import androidx.compose.material.icons.filled.Devices
           import androidx.compose.material3.*
           import androidx.compose.runtime.*
           import androidx.compose.ui.Alignment
@@ -83,7 +87,7 @@ jobs:
               val username: String, val password: String,
               var status: String = "غير متصل",
               var identity: String = "—", var cpu: String = "—",
-              var memory: String = "—", var uptime: String = "—",
+              var memory: String = "—", var storage: String = "—", var uptime: String = "—",
               var activeUsers: String = "—", var lastError: String = "",
               var uploadRate: String = "غير متاح", var downloadRate: String = "غير متاح"
           ) {
@@ -137,6 +141,7 @@ jobs:
                               router.identity = data.first["identity"] ?: "—"
                               router.cpu = data.first["cpu"] ?: "—"
                               router.memory = data.first["memory"] ?: "—"
+                              router.storage = data.first["storage"] ?: "—"
                               router.uptime = data.first["uptime"] ?: "—"
                               router.activeUsers = data.first["active"] ?: "0"
                               router.hostEntries = data.second.first
@@ -174,7 +179,7 @@ jobs:
                           NavigationBar(containerColor = Color(0xFF19192D), contentColor = Color.White) {
                               listOf("الإعدادات", "التقارير", "الراوترات", "الرئيسية").forEach { item ->
                                   NavigationBarItem(selected = tab == item, onClick = { tab = item },
-                                      icon = { Text(when(item) { "الإعدادات" -> "⚙"; "التقارير" -> "▥"; "الراوترات" -> "▣"; else -> "▦" }, fontSize = 20.sp) },
+                                      icon = { Text(when(item) { "الإعدادات" -> "⚙"; "التقارير" -> "▥"; "الراوترات" -> "▣"; else -> "⌂" }, fontSize = 20.sp) },
                                       label = { Text(item, fontSize = 10.sp) })
                               }
                           }
@@ -188,7 +193,7 @@ jobs:
                           item {
                               Row(verticalAlignment = Alignment.CenterVertically) {
                                   Surface(color = Color(0xFF22223A), shape = RoundedCornerShape(18.dp)) {
-                                      Text("☰", color = Color.White, fontSize = 25.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp))
+                                      Icon(Icons.Default.Menu, contentDescription = "القائمة", tint = Color.White, modifier = Modifier.padding(horizontal = 12.dp).size(26.dp))
                                   }
                                   Spacer(Modifier.weight(1f))
                                   Column(horizontalAlignment = Alignment.End) {
@@ -201,7 +206,7 @@ jobs:
                                   }
                                   Spacer(Modifier.width(12.dp))
                                   Surface(color = Color(0xFF22223A), shape = RoundedCornerShape(18.dp)) {
-                                      Text("♟", color = Color(0xFF7665F5), fontSize = 23.sp, modifier = Modifier.padding(12.dp))
+                                      Icon(Icons.Default.Settings, contentDescription = "الإعدادات", tint = Color(0xFF7665F5), modifier = Modifier.padding(12.dp).size(24.dp))
                                   }
                               }
                           }
@@ -209,7 +214,7 @@ jobs:
                               Surface(color = Color(0xFF7162F2), shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
                                   Column(Modifier.padding(20.dp)) {
                                       Row(verticalAlignment = Alignment.CenterVertically) {
-                                          Text("▣", fontSize = 34.sp, color = Color.White)
+                                          Icon(Icons.Default.Router, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                                           Spacer(Modifier.weight(1f))
                                           Column(horizontalAlignment = Alignment.End) {
                                               Text("مرحباً بك في", color = Color.White.copy(alpha = .8f), fontSize = 14.sp)
@@ -237,7 +242,7 @@ jobs:
                                       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                           ResourceTile("CPU", routers.firstOrNull { it.status == "متصل" }?.cpu ?: "—", Color(0xFF7665F5), Modifier.weight(1f))
                                           ResourceTile("RAM", routers.firstOrNull { it.status == "متصل" }?.memory ?: "—", Color(0xFF55B86A), Modifier.weight(1f))
-                                          ResourceTile("التخزين", "غير متاح", Color(0xFFFFA21A), Modifier.weight(1f))
+                                          ResourceTile("التخزين", routers.firstOrNull { it.status == "متصل" }?.storage ?: "—", Color(0xFFFFA21A), Modifier.weight(1f))
                                       }
                                       Divider(color = Muted.copy(alpha = .35f))
                                       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -261,7 +266,7 @@ jobs:
                                           TrafficTile("رفع", routers.firstOrNull { it.status == "متصل" }?.uploadRate ?: "غير متاح", Color(0xFF19365B), Color(0xFF39A9F5), Modifier.weight(1f))
                                           TrafficTile("تحميل", routers.firstOrNull { it.status == "متصل" }?.downloadRate ?: "غير متاح", Color(0xFF1B383B), Color(0xFF55B86A), Modifier.weight(1f))
                                       }
-                                      Text("السرعة محسوبة من عدادات واجهات الراوتر خلال عينة قصيرة.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                                      Text("القراءة المباشرة من ether1: RX تحميل الإنترنت وTX رفع الإنترنت.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
                                   }
                               }
                           }
@@ -314,16 +319,39 @@ jobs:
                                           InfoChip("CPU", router.cpu); InfoChip("RAM", router.memory); InfoChip("ACTIVE", router.activeUsers)
                                       }
                                       Text("هوية الراوتر: ${router.identity}  •  مدة التشغيل: ${router.uptime}", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
-                                      OutlinedButton(onClick = {
-                                          scope.launch {
-                                              usersLoading = true
-                                              val result = withContext(Dispatchers.IO) { runCatching { RouterOsApiClient().readActiveUsers(router.host, router.port.toInt(), router.username, router.password) } }
-                                              result.onSuccess { router.activeSessions = it; selectedRouter = router; message = "تم تحميل ${it.size} مستخدم نشط" }
-                                                  .onFailure { message = it.message ?: "تعذر تحميل المستخدمين" }
-                                              usersLoading = false
+                                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                          OutlinedButton(onClick = {
+                                              scope.launch {
+                                                  usersLoading = true
+                                                  val result = withContext(Dispatchers.IO) { runCatching {
+                                                      val api = RouterOsApiClient()
+                                                      api.readActiveUsers(router.host, router.port.toInt(), router.username, router.password) to
+                                                          api.readHosts(router.host, router.port.toInt(), router.username, router.password)
+                                                  } }
+                                                  result.onSuccess { pair ->
+                                                      router.activeSessions = pair.first
+                                                      router.hostEntries = pair.second
+                                                      selectedRouter = router
+                                                      message = "ACTIVE: ${pair.first.size} • HOST: ${pair.second.size}"
+                                                  }.onFailure { message = it.message ?: "تعذر تحميل الأجهزة" }
+                                                  usersLoading = false
+                                              }
+                                          }, enabled = !usersLoading, modifier = Modifier.weight(1f)) {
+                                              Icon(Icons.Default.Refresh, contentDescription = null)
+                                              Text("ACTIVE")
                                           }
-                                      }, enabled = !usersLoading, modifier = Modifier.fillMaxWidth()) {
-                                          Text(if (usersLoading) "جارٍ التحميل..." else "عرض المستخدمين ACTIVE")
+                                          OutlinedButton(onClick = {
+                                              scope.launch {
+                                                  usersLoading = true
+                                                  val result = withContext(Dispatchers.IO) { runCatching { RouterOsApiClient().readHosts(router.host, router.port.toInt(), router.username, router.password) } }
+                                                  result.onSuccess { router.hostEntries = it; selectedRouter = router; message = "تم تحميل ${it.size} جهاز HOST" }
+                                                      .onFailure { message = it.message ?: "تعذر تحميل HOST" }
+                                                  usersLoading = false
+                                              }
+                                          }, enabled = !usersLoading, modifier = Modifier.weight(1f)) {
+                                              Icon(Icons.Default.Router, contentDescription = null)
+                                              Text("الأجهزة HOST")
+                                          }
                                       }
                                       if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
                                   }
@@ -568,8 +596,11 @@ jobs:
                       val total = value(resources, "total-memory").toLongOrNull()
                       val free = value(resources, "free-memory").toLongOrNull()
                       val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
+                      val diskTotal = value(resources, "total-hdd-space").toLongOrNull()
+                      val diskFree = value(resources, "free-hdd-space").toLongOrNull()
+                      val storage = if (diskTotal != null && diskFree != null && diskTotal > 0) "${((diskTotal-diskFree)/1048576)} / ${diskTotal/1048576} MB" else "غير مدعوم"
                       mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
-                          "memory" to memory, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
+                          "memory" to memory, "storage" to storage, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
                   }
           
               fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
@@ -582,24 +613,16 @@ jobs:
           
               fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
                   withApi(host,port,username,password) { command ->
-                      fun totals():Pair<Long,Long> {
-                          val row = command(listOf("/interface/print","?name=ether1","=.proplist=name,rx-byte,tx-byte")).firstOrNull() ?: return 0L to 0L
-                          fun field(k:String)=row.firstOrNull{it.startsWith("=$k=")}?.substringAfter("=$k=")?.toLongOrNull() ?: 0L
-                          return field("rx-byte") to field("tx-byte")
+                      val row = command(listOf("/interface/monitor-traffic","=interface=ether1","=once=")).firstOrNull()
+                          ?: throw IllegalStateException("لم تصل قراءة حركة ether1")
+                      fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull() ?: 0L
+                      fun format(bits:Long):String = when {
+                          bits >= 1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000.0)
+                          bits >= 1_000 -> String.format(java.util.Locale.US,"%.1f Kbps",bits/1_000.0)
+                          else -> "$bits bps"
                       }
-                      val first=totals()
-                      Thread.sleep(1100)
-                      val second=totals()
-                      fun format(bytes:Long):String {
-                          val bits=(bytes.coerceAtLeast(0)*8/1.1)
-                          return when {
-                              bits>=1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000)
-                              bits>=1_000 -> String.format(java.util.Locale.US,"%.1f Kbps",bits/1_000)
-                              else -> "${bits.toLong()} bps"
-                          }
-                      }
-                      mapOf("upload" to format(second.second-first.second),
-                          "download" to format(second.first-first.first))
+                      mapOf("upload" to format(rate("tx-bits-per-second")),
+                          "download" to format(rate("rx-bits-per-second")))
                   }
           
               fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
