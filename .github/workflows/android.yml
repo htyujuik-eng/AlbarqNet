@@ -83,7 +83,8 @@ data class HotspotHost(val address:String,val mac:String,val server:String,val u
               var status: String = "غير متصل",
               var identity: String = "—", var cpu: String = "—",
               var memory: String = "—", var uptime: String = "—",
-              var activeUsers: String = "—", var lastError: String = ""
+              var activeUsers: String = "—", var lastError: String = "",
+              var uploadRate: String = "غير متاح", var downloadRate: String = "غير متاح"
           ) {
               var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
               var hostEntries by mutableStateOf<List<HotspotHost>>(emptyList())
@@ -190,6 +191,9 @@ data class HotspotHost(val address:String,val mac:String,val server:String,val u
                                                   router.uptime = data["uptime"] ?: "—"; router.activeUsers = data["active"] ?: "0"; router.lastError = ""
                                                   router.hostEntries = RouterOsApiClient().readHosts(router.host, router.port.toInt(), router.username, router.password)
                                                   router.activeSessions = RouterOsApiClient().readActiveUsers(router.host, router.port.toInt(), router.username, router.password)
+                                                  val traffic = RouterOsApiClient().readTraffic(router.host, router.port.toInt(), router.username, router.password)
+                                                  router.uploadRate = traffic["upload"] ?: "غير متاح"
+                                                  router.downloadRate = traffic["download"] ?: "غير متاح"
                                               }.onFailure { router.status = "فشل الاتصال"; router.lastError = it.message ?: "تعذر الاتصال" }
                                           }
                                           message = "اكتمل تحديث بيانات الراوترات"
@@ -223,10 +227,10 @@ data class HotspotHost(val address:String,val mac:String,val server:String,val u
                                       }
                                       Spacer(Modifier.height(12.dp))
                                       Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                          TrafficTile("رفع", "غير متاح", Color(0xFF19365B), Color(0xFF39A9F5), Modifier.weight(1f))
-                                          TrafficTile("تحميل", "غير متاح", Color(0xFF1B383B), Color(0xFF55B86A), Modifier.weight(1f))
+                                          TrafficTile("رفع", routers.firstOrNull { it.status == "متصل" }?.uploadRate ?: "غير متاح", Color(0xFF19365B), Color(0xFF39A9F5), Modifier.weight(1f))
+                                          TrafficTile("تحميل", routers.firstOrNull { it.status == "متصل" }?.downloadRate ?: "غير متاح", Color(0xFF1B383B), Color(0xFF55B86A), Modifier.weight(1f))
                                       }
-                                      Text("سيتم تفعيل قراءة سرعة الرفع والتنزيل في تحديث البيانات القادم.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                                      Text("السرعة محسوبة من عدادات واجهات الراوتر خلال عينة قصيرة.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
                                   }
                               }
                           }
@@ -543,6 +547,31 @@ data class HotspotHost(val address:String,val mac:String,val server:String,val u
                           fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
                           HotspotHost(field("address"),field("mac-address"),field("server"),field("uptime"),field("bridge-port"))
                       }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
+                  }
+
+              fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
+                  withApi(host,port,username,password) { command ->
+                      fun totals():Pair<Long,Long> {
+                          var rx=0L; var tx=0L
+                          command(listOf("/interface/print","=.proplist=rx-byte,tx-byte")).forEach { row ->
+                              fun field(k:String)=row.firstOrNull{it.startsWith("=$k=")}?.substringAfter("=$k=")?.toLongOrNull() ?: 0L
+                              rx+=field("rx-byte"); tx+=field("tx-byte")
+                          }
+                          rx to tx
+                      }
+                      val first=totals()
+                      Thread.sleep(1100)
+                      val second=totals()
+                      fun format(bytes:Long):String {
+                          val bits=(bytes.coerceAtLeast(0)*8/1.1)
+                          return when {
+                              bits>=1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000)
+                              bits>=1_000 -> String.format(java.util.Locale.US,"%.1f Kbps",bits/1_000)
+                              else -> "${bits.toLong()} bps"
+                          }
+                      }
+                      mapOf("upload" to format(second.second-first.second),
+                          "download" to format(second.first-first.first))
                   }
 
               fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
