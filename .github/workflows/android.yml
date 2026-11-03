@@ -120,7 +120,7 @@ jobs:
                           Row(verticalAlignment = Alignment.CenterVertically) {
                               Column(Modifier.weight(1f)) {
                                   Text("⚡ البرق نت", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                                  Text("إدارة MikroTik عن بُعد", color = Cyan, fontSize = 13.sp)
+                                  Text("مراقبة الراوترات — قراءة فقط", color = Cyan, fontSize = 13.sp)
                               }
                               TextButton(onClick = { showOpenWrt = true }) { Text("أجهزة OpenWrt", color = Cyan) }
                           }
@@ -131,7 +131,7 @@ jobs:
                           }
                           Spacer(Modifier.height(16.dp))
                           Text("أجهزة MikroTik", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                          Text("أدخل بيانات حساب API الذي تستخدمه في Smart Controller", color = Muted, fontSize = 12.sp)
+                          Text("عرض الحالة والأجهزة المتصلة دون تعديل إعدادات الراوتر", color = Muted, fontSize = 12.sp)
                           Spacer(Modifier.height(10.dp))
                           if (routers.isEmpty()) {
                               Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
@@ -237,27 +237,14 @@ jobs:
                       }
                   )
                   selectedRouter?.let { router ->
-                      ActiveUsersDialog(router, { selectedRouter = null }, { user ->
-                          scope.launch {
-                              usersLoading = true
-                              val result = withContext(Dispatchers.IO) {
-                                  runCatching { RouterOsApiClient().disconnectUser(router.host, router.port.toInt(), router.username, router.password, user.id) }
-                              }
-                              result.onSuccess {
-                                  router.activeSessions = router.activeSessions.filterNot { session -> session.id == user.id }
-                                  router.activeUsers = router.activeSessions.size.toString()
-                                  message = "تم فصل المستخدم ${user.name}"
-                              }.onFailure { error -> message = error.message ?: "تعذر فصل المستخدم" }
-                              usersLoading = false
-                          }
-                      }, usersLoading)
+                      ActiveUsersDialog(router, { selectedRouter = null })
                   }
               }
           }
 
 
           @Composable
-          fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit, onDisconnect: (ActiveHotspotUser) -> Unit, busy: Boolean) {
+          fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
               AlertDialog(
                   onDismissRequest = onDismiss,
                   title = { Text("المتصلون - ${router.name}") },
@@ -271,9 +258,6 @@ jobs:
                                       Text(user.name.ifBlank { "مستخدم بدون اسم" }, color = Color.White, fontWeight = FontWeight.Bold)
                                       Text("IP: ${user.address} • MAC: ${user.mac}", color = Muted, fontSize = 10.sp)
                                       Text("مدة الاتصال: ${user.uptime}", color = Muted, fontSize = 11.sp)
-                                      TextButton(onClick = { onDisconnect(user) }, enabled = !busy, modifier = Modifier.align(Alignment.End)) {
-                                          Text("فصل المستخدم", color = Color(0xFFFF9B9B))
-                                      }
                                   }
                               }
                           }
@@ -443,12 +427,7 @@ jobs:
                       }.filter { it.id.isNotBlank() }
                   }
 
-              fun disconnectUser(host: String, port: Int, username: String, password: String, id: String) {
-                  require(id.startsWith("*")) { "معرّف الجلسة غير صالح" }
-                  withApi(host, port, username, password) { command ->
-                      command(listOf("/ip/hotspot/active/remove", "=.id=$id")); true
-                  }
-              }
+
 
               private fun writeLength(out: BufferedOutputStream, length: Int) {
                   when {
@@ -564,7 +543,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 6").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.6.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
+          s = p.read_text().replace("versionCode = 1", "versionCode = 7").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.7.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           if "com.github.mwiede:jsch" not in s:
               s = s.replace("dependencies {", 'dependencies {\n    implementation("com.github.mwiede:jsch:0.2.20")', 1)
@@ -589,5 +568,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AlbarqNet-APK-v0.6
+          name: AlbarqNet-APK-v0.7
           path: appsrc/app/build/outputs/apk/debug/app-debug.apk
