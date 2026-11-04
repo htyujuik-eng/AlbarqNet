@@ -531,7 +531,9 @@ jobs:
                                           Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
                                                                                 Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
                                       }
-                                      TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}\n                                          TextButton(enabled=!busy,onClick={scope.launch { busy=true; val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}; r.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "فشل تغيير الحالة"};busy=false })}{Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFB45B))}\n                                          TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
+                                      TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}
+                                          TextButton(enabled=!busy,onClick={scope.launch { busy=true; val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}; r.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "فشل تغيير الحالة"};busy=false })}{Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFB45B))}
+                                          TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                   }
                               }
                           }
@@ -691,7 +693,8 @@ jobs:
                 }
             
                 fun save(routers: List<RouterEntry>) {
-                    val raw = routers.joinToString("\n") { router ->
+                    val raw = routers.joinToString("
+") { router ->
                         listOf(router.name, router.host, router.port, router.username, router.password)
                             .joinToString("|") { Base64.encodeToString(it.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) }
                     }.toByteArray(Charsets.UTF_8)
@@ -934,7 +937,8 @@ jobs:
                     try {
                         val host=openWrtSsh(ip,pw,"cat /proc/sys/kernel/hostname").ifBlank{"OpenWrt"}
                         val model=openWrtSsh(ip,pw,"cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name").ifBlank{"غير معروف"}
-                        val clientsCmd = "iw dev | awk '/Interface/{print \$2}' | while read iface; do iw dev \$iface station dump 2>/dev/null | awk '/^Station /{print \$2}'; done | sort -u | while read clientmac; do [ -n \$clientmac ] || continue; clientip=\$(ip neigh show | awk -v m=\$clientmac 'tolower(\$5)==tolower(m){print \$1;exit}'); clientname=\$(awk -v m=\$clientmac 'tolower(\$2)==tolower(m){print \$4;exit}' /tmp/dhcp.leases 2>/dev/null); printf '%s|%s|%s\\n' \$clientmac \"\$clientip\" \"\$clientname\"; done"
+                        val clientsCmd = "iw dev | awk '/Interface/{print \$2}' | while read iface; do iw dev \$iface station dump 2>/dev/null | awk '/^Station /{print \$2}'; done | sort -u | while read clientmac; do [ -n \$clientmac ] || continue; clientip=\$(ip neigh show | awk -v m=\$clientmac 'tolower(\$5)==tolower(m){print \$1;exit}'); clientname=\$(awk -v m=\$clientmac 'tolower(\$2)==tolower(m){print \$4;exit}' /tmp/dhcp.leases 2>/dev/null); printf '%s|%s|%s\
+' \$clientmac \"\$clientip\" \"\$clientname\"; done"
                         val clientRaw=runCatching{openWrtSsh(ip,pw,clientsCmd)}.getOrDefault("")
                         val clientList=clientRaw.lines().mapNotNull { line ->
                             val parts=line.split("|")
@@ -996,7 +1000,8 @@ jobs:
           s = p.read_text().replace("versionCode = 1", "versionCode = 8").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.8.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           if "com.github.mwiede:jsch" not in s:
-              s = s.replace("dependencies {", 'dependencies {\n    implementation("com.github.mwiede:jsch:0.2.20")', 1)
+              s = s.replace("dependencies {", 'dependencies {
+    implementation("com.github.mwiede:jsch:0.2.20")', 1)
           s += """
 
           android {
