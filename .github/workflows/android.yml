@@ -492,6 +492,7 @@ jobs:
               var name by remember { mutableStateOf("") }
               var password by remember { mutableStateOf("") }
               var profile by remember { mutableStateOf("default") }
+              var searchText by remember { mutableStateOf("") }
               var deleteTarget by remember { mutableStateOf<String?>(null) }
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
@@ -509,10 +510,17 @@ jobs:
                           TextButton(enabled=!busy,onClick={reload()}){Text("تحديث")}
                           TextButton(onClick={addOpen=true}){Text("إضافة")}
                       }
+                      OutlinedTextField(
+                          value=searchText,onValueChange={searchText=it},
+                          modifier=Modifier.fillMaxWidth(),singleLine=true,
+                          label={Text("بحث باسم الكرت أو الباقة")}
+                      )
                       Text(note,color=Muted,fontSize=11.sp)
                       if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                      LazyColumn(Modifier.heightIn(max=360.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                          items(cards) { c ->
+                      val visibleCards=cards.filter { it.name.contains(searchText,true) || it.profile.contains(searchText,true) || it.server.contains(searchText,true) }
+                      Text("النتائج: ${visibleCards.size}",color=Muted,fontSize=10.sp)
+                      LazyColumn(Modifier.heightIn(max=320.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                          items(visibleCards) { c ->
                               Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
                                   Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
                                       Column(Modifier.weight(1f)) {
