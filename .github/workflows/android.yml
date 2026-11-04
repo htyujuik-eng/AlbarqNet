@@ -496,7 +496,8 @@ jobs:
                                       Column(Modifier.padding(9.dp)) {
                                           val hostMatch = router.hostEntries.firstOrNull { it.mac.equals(user.mac,ignoreCase=true) || (it.address.isNotBlank() && it.address==user.address) }
                                           Text(hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" } ?: "الجهاز: غير معروف",color=Cyan,fontWeight=FontWeight.Bold)
-                                          Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)\n                                          Text("السيرفر: ${user.server.ifBlank{"—"}}",color=Cyan,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
+                                          Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)
+                                          Text("السيرفر: ${user.server.ifBlank{"—"}}",color=Cyan,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
                                           Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
                                           Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
                                       }
