@@ -84,6 +84,7 @@ jobs:
           
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String, val server: String = "")
           data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String,val deviceName:String="غير معروف")
+          data class HotspotCard(val name:String,val profile:String,val server:String,val uptime:String,val limitUptime:String)
           data class HotspotServer(val name:String,val interfaceName:String,val profile:String,val addressPool:String,val enabled:Boolean)
           
           data class RouterEntry(
@@ -121,6 +122,7 @@ jobs:
               var showOpenWrt by remember { mutableStateOf(false) }
               var showSettings by remember { mutableStateOf(false) }
               var showReports by remember { mutableStateOf(false) }
+              var cardsRouter by remember { mutableStateOf<RouterEntry?>(null) }
               var showRouters by remember { mutableStateOf(false) }
               var tab by remember { mutableStateOf("الرئيسية") }
               val scope = rememberCoroutineScope()
@@ -393,7 +395,8 @@ jobs:
                                               Text("الأجهزة HOST")
                                           }
                                       }
-                                      if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
+                                      OutlinedButton(onClick={cardsRouter=router},modifier=Modifier.fillMaxWidth()) { Text("إدارة كروت HotSpot") }
+                                       if (router.lastError.isNotBlank())if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
                                   }
                               }
                           }
@@ -438,7 +441,8 @@ jobs:
                           showAdd = false
                       }
                   )
-                  selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }
+                  cardsRouter?.let { router -> HotspotCardsDialog(router,{cardsRouter=null}) }
+                   selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }
               }
           }
           
@@ -480,6 +484,76 @@ jobs:
           }
           
           @Composable
+          fun HotspotCardsDialog(router:RouterEntry,onDismiss:()->Unit) {
+              var cards by remember { mutableStateOf<List<HotspotCard>>(emptyList()) }
+              var busy by remember { mutableStateOf(false) }
+              var note by remember { mutableStateOf("") }
+              var addOpen by remember { mutableStateOf(false) }
+              var name by remember { mutableStateOf("") }
+              var password by remember { mutableStateOf("") }
+              var profile by remember { mutableStateOf("default") }
+              var deleteTarget by remember { mutableStateOf<String?>(null) }
+              val scope=rememberCoroutineScope()
+              fun reload() { scope.launch {
+                  busy=true
+                  val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().readHotspotCards(router.host,router.port.toInt(),router.username,router.password)}}
+                  result.onSuccess{cards=it;note="تم تحميل ${it.size} كرت"}.onFailure{note=it.message ?: "تعذر التحميل"}
+                  busy=false
+              } }
+              LaunchedEffect(Unit){reload()}
+              AlertDialog(onDismissRequest=onDismiss,title={Text("كروت HotSpot — ${router.name}")},text={
+                  Column(verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                      Row(verticalAlignment=Alignment.CenterVertically) {
+                          Text("الكروت: ${cards.size}",color=Cyan)
+                          Spacer(Modifier.weight(1f))
+                          TextButton(enabled=!busy,onClick={reload()}){Text("تحديث")}
+                          TextButton(onClick={addOpen=true}){Text("إضافة")}
+                      }
+                      Text(note,color=Muted,fontSize=11.sp)
+                      if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                      LazyColumn(Modifier.heightIn(max=360.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                          items(cards) { c ->
+                              Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
+                                  Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                                      Column(Modifier.weight(1f)) {
+                                          Text(c.name,color=Color.White,fontWeight=FontWeight.Bold)
+                                          Text("الباقة: ${c.profile.ifBlank{"default"}} • السيرفر: ${c.server.ifBlank{"all"}}",color=Muted,fontSize=10.sp)
+                                          Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                      }
+                                      TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
+                                  }
+                              }
+                          }
+                      }
+                  }
+              },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
+              if(addOpen) AlertDialog(onDismissRequest={addOpen=false},title={Text("إضافة كرت")},text={
+                  Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                      OutlinedTextField(name,{name=it},label={Text("اسم المستخدم / رقم الكرت")},singleLine=true)
+                      OutlinedTextField(password,{password=it},label={Text("كلمة المرور")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+                      OutlinedTextField(profile,{profile=it},label={Text("الباقة Profile")},singleLine=true)
+                  }
+              },confirmButton={TextButton(enabled=name.isNotBlank()&&password.isNotBlank()&&!busy,onClick={
+                  scope.launch {
+                      busy=true
+                      val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().addHotspotCard(router.host,router.port.toInt(),router.username,router.password,name.trim(),password,profile.trim().ifBlank{"default"})}}
+                      result.onSuccess{addOpen=false;name="";password="";note="تمت إضافة الكرت";reload()}.onFailure{note=it.message ?: "فشلت الإضافة"}
+                      busy=false
+                  }
+              }){Text("حفظ")}},dismissButton={TextButton(onClick={addOpen=false}){Text("إلغاء")}})
+              deleteTarget?.let { target -> AlertDialog(onDismissRequest={deleteTarget=null},title={Text("تأكيد الحذف")},text={Text("حذف الكرت $target من الراوتر؟")},confirmButton={
+                  TextButton(onClick={
+                      deleteTarget=null
+                      scope.launch {
+                          busy=true
+                          val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().removeHotspotCard(router.host,router.port.toInt(),router.username,router.password,target)}}
+                          result.onSuccess{note="تم حذف $target";reload()}.onFailure{note=it.message ?: "فشل الحذف"}
+                          busy=false
+                      }
+                  }){Text("حذف نهائياً",color=Color(0xFFFF7777))}
+              },dismissButton={TextButton(onClick={deleteTarget=null}){Text("إلغاء")}}) }
+          }
+
           fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
               var page by remember { mutableStateOf("ACTIVE") }
               AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
@@ -724,7 +798,28 @@ jobs:
                           "download" to format(rate("rx-bits-per-second")))
                   }
           
-              fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
+              fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
+              withApi(host,port,username,password) { command ->
+                  command(listOf("/ip/hotspot/user/print")).map { row ->
+                      fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                      HotspotCard(field("name"),field("profile"),field("server"),field("uptime"),field("limit-uptime"))
+                  }.filter{it.name.isNotBlank()}
+              }
+          fun addHotspotCard(host:String,port:Int,username:String,password:String,name:String,secret:String,profile:String) {
+              require(name.isNotBlank()) { "اكتب اسم الكرت" }
+              withApi(host,port,username,password) { command ->
+                  command(listOf("/ip/hotspot/user/add","=name=$name","=password=$secret","=profile=$profile")); Unit
+              }
+          }
+          fun removeHotspotCard(host:String,port:Int,username:String,password:String,name:String) {
+              withApi(host,port,username,password) { command ->
+                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                  command(listOf("/ip/hotspot/user/remove","=.id=$id")); Unit
+              }
+          }
+
+          fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
                   withApi(host, port, username, password) { command ->
                       command(listOf("/ip/hotspot/active/print")).map { row ->
                           fun field(key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
