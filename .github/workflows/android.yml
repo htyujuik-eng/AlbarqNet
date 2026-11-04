@@ -494,8 +494,6 @@ jobs:
               var profile by remember { mutableStateOf("default") }
               var searchText by remember { mutableStateOf("") }
               var deleteTarget by remember { mutableStateOf<String?>(null) }
-                            var passwordTarget by remember { mutableStateOf<String?>(null) }
-                            var newPassword by remember { mutableStateOf("") }
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
                   busy=true
@@ -531,8 +529,6 @@ jobs:
                                           Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
                                                                                 Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
                                       }
-                                      TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}
-                                          TextButton(enabled=!busy,onClick={scope.launch { busy=true; val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}; r.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "فشل تغيير الحالة"};busy=false })}{Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFB45B))}
                                           TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                   }
                               }
@@ -567,14 +563,6 @@ jobs:
               },dismissButton={TextButton(onClick={deleteTarget=null}){Text("إلغاء")}}) }
           }
 
-          passwordTarget?.let { target -> AlertDialog(onDismissRequest={passwordTarget=null},title={Text("تغيير كلمة مرور $target")},text={
-                  OutlinedTextField(value=newPassword,onValueChange={newPassword=it},label={Text("كلمة المرور الجديدة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-              },confirmButton={TextButton(enabled=newPassword.isNotBlank()&&!busy,onClick={scope.launch {
-                  busy=true
-                  val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCardPassword(router.host,router.port.toInt(),router.username,router.password,target,newPassword)}}
-                  r.onSuccess{note="تم تغيير كلمة المرور";passwordTarget=null;reload()}.onFailure{note=it.message ?: "فشل تغيير كلمة المرور"}
-                  busy=false
-              }}){Text("حفظ")}},dismissButton={TextButton(onClick={passwordTarget=null}){Text("إلغاء")}}) }
             @Composable
             fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
                 var page by remember { mutableStateOf("ACTIVE") }
