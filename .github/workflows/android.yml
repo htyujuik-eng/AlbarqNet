@@ -570,422 +570,422 @@ jobs:
                   r.onSuccess{note="تم تغيير كلمة المرور";passwordTarget=null;reload()}.onFailure{note=it.message ?: "فشل تغيير كلمة المرور"}
                   busy=false
               }}){Text("حفظ")}},dismissButton={TextButton(onClick={passwordTarget=null}){Text("إلغاء")}}) }
-          @Composable
-          fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
-              var page by remember { mutableStateOf("ACTIVE") }
-              AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
-                  Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                      Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                          FilterChip(selected=page=="ACTIVE",onClick={page="ACTIVE"},label={Text("ACTIVE (${router.activeSessions.size})")})
-                          FilterChip(selected=page=="HOST",onClick={page="HOST"},label={Text("HOST (${router.hostEntries.size})")})
-                      }
-                      if(page=="ACTIVE") {
-                          if(router.activeSessions.isEmpty()) Text("لا يوجد مستخدمون نشطون حالياً")
-                          else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
-                              items(router.activeSessions) { user ->
-                                  Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
-                                      Column(Modifier.padding(9.dp)) {
-                                          val hostMatch = router.hostEntries.firstOrNull { it.mac.equals(user.mac,ignoreCase=true) || (it.address.isNotBlank() && it.address==user.address) }
-                                          Text(hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" } ?: "الجهاز: غير معروف",color=Cyan,fontWeight=FontWeight.Bold)
-                                          Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)
-                                          Text("السيرفر: ${user.server.ifBlank{"—"}}",color=Cyan,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
-                                          Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
-                                          Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
-                                      }
-                                  }
-                              }
-                          }
-                      } else {
-                          if(router.hostEntries.isEmpty()) Text("لا توجد أجهزة HOST ظاهرة حالياً")
-                          else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
-                              items(router.hostEntries) { device ->
-                                  Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
-                                      Column(Modifier.padding(10.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                                          Row(verticalAlignment=Alignment.CenterVertically) {
-                                              Text(device.deviceName.ifBlank{"غير معروف"},color=Color.White,fontWeight=FontWeight.Bold,fontSize=14.sp)
-                                              Spacer(Modifier.weight(1f))
-                                              Text("HOST",color=Cyan,fontSize=10.sp)
-                                          }
-                                          Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()) {
-                                              InfoChip("المنفذ",device.interfaceName.ifBlank{"—"})
-                                              InfoChip("MAC",device.mac.ifBlank{"—"})
-                                          }
-                                          Text("عنوان IP: ${device.address.ifBlank{"غير معروف"}}",color=Color(0xFF55C978),fontSize=12.sp,fontWeight=FontWeight.SemiBold)
-                                          Text("السيرفر: ${device.server.ifBlank{"—"}}  •  المدة: ${device.uptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
-          }
-          
-          @Composable
-          fun SummaryCard(title: String, value: String, modifier: Modifier = Modifier) {
-              Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = modifier) {
-                  Column(Modifier.padding(14.dp)) {
-                      Text(value, color = Cyan, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                      Text(title, color = Muted, fontSize = 12.sp)
-                  }
-              }
-          }
-          
-          @Composable
-          fun InfoChip(label: String, value: String) {
-              Surface(color = Navy, shape = RoundedCornerShape(10.dp)) {
-                  Text("$label: $value", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
-              }
-          }
-          
-          @Composable
-          fun AddRouterDialog(onDismiss: () -> Unit, onAdd: (String, String, String, String, String) -> Unit) {
-              var name by remember { mutableStateOf("المايكروتك الرئيسي") }
-              var host by remember { mutableStateOf("ip.ssye.cc") }
-              var port by remember { mutableStateOf("10952") }
-              var username by remember { mutableStateOf("") }
-              var password by remember { mutableStateOf("") }
-              AlertDialog(
-                  onDismissRequest = onDismiss,
-                  title = { Text("إضافة راوتر MikroTik") },
-                  text = {
-                      Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                          OutlinedTextField(name, { name = it }, label = { Text("اسم الراوتر") }, singleLine = true)
-                          OutlinedTextField(host, { host = it }, label = { Text("العنوان أو النطاق") }, singleLine = true)
-                          OutlinedTextField(port, { port = it }, label = { Text("منفذ API") }, singleLine = true)
-                          OutlinedTextField(username, { username = it }, label = { Text("اسم المستخدم") }, singleLine = true)
-                          OutlinedTextField(password, { password = it }, label = { Text("كلمة المرور") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-                          Text("استخدم بيانات حساب API الحالي. لا تحفظ كلمة المرور على جهاز مشترك.", color = Muted, fontSize = 11.sp)
-                      }
-                  },
-                  confirmButton = {
-                      TextButton(onClick = {
-                          if (name.isNotBlank() && host.isNotBlank() && port.toIntOrNull() != null && username.isNotBlank() && password.isNotBlank())
-                              onAdd(name.trim(), host.trim(), port.trim(), username.trim(), password)
-                      }) { Text("إضافة") }
-                  },
-                  dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
-              )
-          }
-          
-          
-          class RouterStorage(private val context: Context) {
-              private val prefs = context.getSharedPreferences("albarq_saved_routers", Context.MODE_PRIVATE)
-              private val alias = "AlbarqNetRouterStorageKey"
-          
-              private fun key(): SecretKey {
-                  val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-                  (store.getKey(alias, null) as? SecretKey)?.let { return it }
-                  val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-                  generator.init(
-                      KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                          .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                          .setRandomizedEncryptionRequired(true)
-                          .build()
-                  )
-                  return generator.generateKey()
-              }
-          
-              fun save(routers: List<RouterEntry>) {
-                  val raw = routers.joinToString("\n") { router ->
-                      listOf(router.name, router.host, router.port, router.username, router.password)
-                          .joinToString("|") { Base64.encodeToString(it.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) }
-                  }.toByteArray(Charsets.UTF_8)
-                  val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                  cipher.init(Cipher.ENCRYPT_MODE, key())
-                  val encrypted = cipher.doFinal(raw)
-                  val payload = cipher.iv + encrypted
-                  prefs.edit().putString("routers", Base64.encodeToString(payload, Base64.NO_WRAP)).apply()
-              }
-          
-              fun load(): List<RouterEntry> {
-                  val encoded = prefs.getString("routers", null) ?: return emptyList()
-                  return runCatching {
-                      val payload = Base64.decode(encoded, Base64.NO_WRAP)
-                      val iv = payload.copyOfRange(0, 12)
-                      val ciphertext = payload.copyOfRange(12, payload.size)
-                      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                      cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
-                      String(cipher.doFinal(ciphertext), Charsets.UTF_8).lineSequence()
-                          .filter { it.isNotBlank() }
-                          .mapNotNull { line ->
-                              val fields = line.split("|").map { String(Base64.decode(it, Base64.NO_WRAP), Charsets.UTF_8) }
-                              if (fields.size == 5) RouterEntry(fields[0], fields[1], fields[2], fields[3], fields[4]) else null
-                          }.toList()
-                  }.getOrDefault(emptyList())
-              }
-          }
-          
-          class RouterOsApiClient {
-              private fun <T> withApi(host: String, port: Int, username: String, password: String, action: ((List<String>) -> List<List<String>>) -> T): T {
-                  require(port in 1..65535) { "رقم المنفذ غير صحيح" }
-                  Socket().use { socket ->
-                      socket.connect(InetSocketAddress(host, port), 9000)
-                      socket.soTimeout = 9000
-                      val input = BufferedInputStream(socket.getInputStream())
-                      val output = BufferedOutputStream(socket.getOutputStream())
-                      fun command(words: List<String>): List<List<String>> {
-                          words.forEach { word ->
-                              val bytes = word.toByteArray(Charsets.UTF_8)
-                              writeLength(output, bytes.size); output.write(bytes)
-                          }
-                          output.write(0); output.flush()
-                          val rows = mutableListOf<List<String>>()
-                          while (true) {
-                              val sentence = mutableListOf<String>()
-                              while (true) {
-                                  val length = readLength(input)
-                                  if (length == 0) break
-                                  val bytes = ByteArray(length); var offset = 0
-                                  while (offset < length) {
-                                      val count = input.read(bytes, offset, length - offset)
-                                      if (count < 0) throw IllegalStateException("انقطع اتصال API")
-                                      offset += count
-                                  }
-                                  sentence.add(String(bytes, Charsets.UTF_8))
-                              }
-                              if (sentence.isEmpty()) continue
-                              when (sentence[0]) {
-                                  "!re" -> rows.add(sentence)
-                                  "!trap" -> throw IllegalStateException(sentence.drop(1).joinToString(" ").ifBlank { "رفض المايكروتك الأمر" })
-                                  "!fatal" -> throw IllegalStateException("أغلق المايكروتك اتصال API")
-                                  "!done" -> return rows
-                              }
-                          }
-                      }
-                      command(listOf("/login", "=name=$username", "=password=$password"))
-                      return action { words -> command(words) }
-                  }
-              }
-          
-              fun readStatus(host: String, port: Int, username: String, password: String): Map<String, String> =
-                  withApi(host, port, username, password) { command ->
-                      val resources = command(listOf("/system/resource/print")).firstOrNull().orEmpty()
-                      val identity = command(listOf("/system/identity/print")).firstOrNull().orEmpty()
-                      val active = command(listOf("/ip/hotspot/active/print"))
-                      fun value(row: List<String>, key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: "—"
-                      val total = value(resources, "total-memory").toLongOrNull()
-                      val free = value(resources, "free-memory").toLongOrNull()
-                      val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
-                      val diskTotal = value(resources, "total-hdd-space").toLongOrNull()
-                      val diskFree = value(resources, "free-hdd-space").toLongOrNull()
-                      val storage = if (diskTotal != null && diskFree != null && diskTotal > 0) "${((diskTotal-diskFree)*100/diskTotal)}%" else "غير مدعوم"
-                      mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
-                          "memory" to memory, "storage" to storage, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
-                  }
-          
-              fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
-                  withApi(host,port,username,password) { command ->
-                      val leases = runCatching { command(listOf("/ip/dhcp-server/lease/print")) }.getOrDefault(emptyList())
-                      val namesByMac = leases.mapNotNull { lease ->
-                          fun field(key:String)=lease.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
-                          val mac=field("mac-address").lowercase()
-                          val name=field("host-name").ifBlank { field("comment") }
-                          if(mac.isNotBlank() && name.isNotBlank()) mac to name else null
-                      }.toMap()
-                      command(listOf("/ip/hotspot/host/print")).map { row ->
-                          fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
-                          val mac=field("mac-address")
-                          val bridgePort=field("bridge-port")
-                          val deviceName=namesByMac[mac.lowercase()] ?: "غير معروف"
-                          HotspotHost(field("address"),mac,field("server"),field("uptime"),bridgePort.ifBlank{"—"},deviceName)
-                      }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
-                  }
-          
-              fun readHotspotServers(host:String,port:Int,username:String,password:String):List<HotspotServer> =
-                  withApi(host,port,username,password) { command ->
-                      command(listOf("/ip/hotspot/print")).map { row ->
-                          fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
-                          HotspotServer(field("name").ifBlank{"بدون اسم"},field("interface"),field("profile"),field("address-pool"),field("disabled")!="true")
-                      }
-                  }
+            @Composable
+            fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
+                var page by remember { mutableStateOf("ACTIVE") }
+                AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
+                    Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected=page=="ACTIVE",onClick={page="ACTIVE"},label={Text("ACTIVE (${router.activeSessions.size})")})
+                            FilterChip(selected=page=="HOST",onClick={page="HOST"},label={Text("HOST (${router.hostEntries.size})")})
+                        }
+                        if(page=="ACTIVE") {
+                            if(router.activeSessions.isEmpty()) Text("لا يوجد مستخدمون نشطون حالياً")
+                            else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                                items(router.activeSessions) { user ->
+                                    Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(9.dp)) {
+                                            val hostMatch = router.hostEntries.firstOrNull { it.mac.equals(user.mac,ignoreCase=true) || (it.address.isNotBlank() && it.address==user.address) }
+                                            Text(hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" } ?: "الجهاز: غير معروف",color=Cyan,fontWeight=FontWeight.Bold)
+                                            Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)
+                                            Text("السيرفر: ${user.server.ifBlank{"—"}}",color=Cyan,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
+                                            Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
+                                            Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            if(router.hostEntries.isEmpty()) Text("لا توجد أجهزة HOST ظاهرة حالياً")
+                            else LazyColumn(Modifier.heightIn(max=430.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                                items(router.hostEntries) { device ->
+                                    Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(10.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                                            Row(verticalAlignment=Alignment.CenterVertically) {
+                                                Text(device.deviceName.ifBlank{"غير معروف"},color=Color.White,fontWeight=FontWeight.Bold,fontSize=14.sp)
+                                                Spacer(Modifier.weight(1f))
+                                                Text("HOST",color=Cyan,fontSize=10.sp)
+                                            }
+                                            Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()) {
+                                                InfoChip("المنفذ",device.interfaceName.ifBlank{"—"})
+                                                InfoChip("MAC",device.mac.ifBlank{"—"})
+                                            }
+                                            Text("عنوان IP: ${device.address.ifBlank{"غير معروف"}}",color=Color(0xFF55C978),fontSize=12.sp,fontWeight=FontWeight.SemiBold)
+                                            Text("السيرفر: ${device.server.ifBlank{"—"}}  •  المدة: ${device.uptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
+            }
+            
+            @Composable
+            fun SummaryCard(title: String, value: String, modifier: Modifier = Modifier) {
+                Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = modifier) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(value, color = Cyan, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                        Text(title, color = Muted, fontSize = 12.sp)
+                    }
+                }
+            }
+            
+            @Composable
+            fun InfoChip(label: String, value: String) {
+                Surface(color = Navy, shape = RoundedCornerShape(10.dp)) {
+                    Text("$label: $value", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
+                }
+            }
+            
+            @Composable
+            fun AddRouterDialog(onDismiss: () -> Unit, onAdd: (String, String, String, String, String) -> Unit) {
+                var name by remember { mutableStateOf("المايكروتك الرئيسي") }
+                var host by remember { mutableStateOf("ip.ssye.cc") }
+                var port by remember { mutableStateOf("10952") }
+                var username by remember { mutableStateOf("") }
+                var password by remember { mutableStateOf("") }
+                AlertDialog(
+                    onDismissRequest = onDismiss,
+                    title = { Text("إضافة راوتر MikroTik") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            OutlinedTextField(name, { name = it }, label = { Text("اسم الراوتر") }, singleLine = true)
+                            OutlinedTextField(host, { host = it }, label = { Text("العنوان أو النطاق") }, singleLine = true)
+                            OutlinedTextField(port, { port = it }, label = { Text("منفذ API") }, singleLine = true)
+                            OutlinedTextField(username, { username = it }, label = { Text("اسم المستخدم") }, singleLine = true)
+                            OutlinedTextField(password, { password = it }, label = { Text("كلمة المرور") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                            Text("استخدم بيانات حساب API الحالي. لا تحفظ كلمة المرور على جهاز مشترك.", color = Muted, fontSize = 11.sp)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if (name.isNotBlank() && host.isNotBlank() && port.toIntOrNull() != null && username.isNotBlank() && password.isNotBlank())
+                                onAdd(name.trim(), host.trim(), port.trim(), username.trim(), password)
+                        }) { Text("إضافة") }
+                    },
+                    dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+                )
+            }
+            
+            
+            class RouterStorage(private val context: Context) {
+                private val prefs = context.getSharedPreferences("albarq_saved_routers", Context.MODE_PRIVATE)
+                private val alias = "AlbarqNetRouterStorageKey"
+            
+                private fun key(): SecretKey {
+                    val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                    (store.getKey(alias, null) as? SecretKey)?.let { return it }
+                    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+                    generator.init(
+                        KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                            .setRandomizedEncryptionRequired(true)
+                            .build()
+                    )
+                    return generator.generateKey()
+                }
+            
+                fun save(routers: List<RouterEntry>) {
+                    val raw = routers.joinToString("\n") { router ->
+                        listOf(router.name, router.host, router.port, router.username, router.password)
+                            .joinToString("|") { Base64.encodeToString(it.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) }
+                    }.toByteArray(Charsets.UTF_8)
+                    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                    cipher.init(Cipher.ENCRYPT_MODE, key())
+                    val encrypted = cipher.doFinal(raw)
+                    val payload = cipher.iv + encrypted
+                    prefs.edit().putString("routers", Base64.encodeToString(payload, Base64.NO_WRAP)).apply()
+                }
+            
+                fun load(): List<RouterEntry> {
+                    val encoded = prefs.getString("routers", null) ?: return emptyList()
+                    return runCatching {
+                        val payload = Base64.decode(encoded, Base64.NO_WRAP)
+                        val iv = payload.copyOfRange(0, 12)
+                        val ciphertext = payload.copyOfRange(12, payload.size)
+                        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+                        String(cipher.doFinal(ciphertext), Charsets.UTF_8).lineSequence()
+                            .filter { it.isNotBlank() }
+                            .mapNotNull { line ->
+                                val fields = line.split("|").map { String(Base64.decode(it, Base64.NO_WRAP), Charsets.UTF_8) }
+                                if (fields.size == 5) RouterEntry(fields[0], fields[1], fields[2], fields[3], fields[4]) else null
+                            }.toList()
+                    }.getOrDefault(emptyList())
+                }
+            }
+            
+            class RouterOsApiClient {
+                private fun <T> withApi(host: String, port: Int, username: String, password: String, action: ((List<String>) -> List<List<String>>) -> T): T {
+                    require(port in 1..65535) { "رقم المنفذ غير صحيح" }
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(host, port), 9000)
+                        socket.soTimeout = 9000
+                        val input = BufferedInputStream(socket.getInputStream())
+                        val output = BufferedOutputStream(socket.getOutputStream())
+                        fun command(words: List<String>): List<List<String>> {
+                            words.forEach { word ->
+                                val bytes = word.toByteArray(Charsets.UTF_8)
+                                writeLength(output, bytes.size); output.write(bytes)
+                            }
+                            output.write(0); output.flush()
+                            val rows = mutableListOf<List<String>>()
+                            while (true) {
+                                val sentence = mutableListOf<String>()
+                                while (true) {
+                                    val length = readLength(input)
+                                    if (length == 0) break
+                                    val bytes = ByteArray(length); var offset = 0
+                                    while (offset < length) {
+                                        val count = input.read(bytes, offset, length - offset)
+                                        if (count < 0) throw IllegalStateException("انقطع اتصال API")
+                                        offset += count
+                                    }
+                                    sentence.add(String(bytes, Charsets.UTF_8))
+                                }
+                                if (sentence.isEmpty()) continue
+                                when (sentence[0]) {
+                                    "!re" -> rows.add(sentence)
+                                    "!trap" -> throw IllegalStateException(sentence.drop(1).joinToString(" ").ifBlank { "رفض المايكروتك الأمر" })
+                                    "!fatal" -> throw IllegalStateException("أغلق المايكروتك اتصال API")
+                                    "!done" -> return rows
+                                }
+                            }
+                        }
+                        command(listOf("/login", "=name=$username", "=password=$password"))
+                        return action { words -> command(words) }
+                    }
+                }
+            
+                fun readStatus(host: String, port: Int, username: String, password: String): Map<String, String> =
+                    withApi(host, port, username, password) { command ->
+                        val resources = command(listOf("/system/resource/print")).firstOrNull().orEmpty()
+                        val identity = command(listOf("/system/identity/print")).firstOrNull().orEmpty()
+                        val active = command(listOf("/ip/hotspot/active/print"))
+                        fun value(row: List<String>, key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: "—"
+                        val total = value(resources, "total-memory").toLongOrNull()
+                        val free = value(resources, "free-memory").toLongOrNull()
+                        val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
+                        val diskTotal = value(resources, "total-hdd-space").toLongOrNull()
+                        val diskFree = value(resources, "free-hdd-space").toLongOrNull()
+                        val storage = if (diskTotal != null && diskFree != null && diskTotal > 0) "${((diskTotal-diskFree)*100/diskTotal)}%" else "غير مدعوم"
+                        mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
+                            "memory" to memory, "storage" to storage, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
+                    }
+            
+                fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
+                    withApi(host,port,username,password) { command ->
+                        val leases = runCatching { command(listOf("/ip/dhcp-server/lease/print")) }.getOrDefault(emptyList())
+                        val namesByMac = leases.mapNotNull { lease ->
+                            fun field(key:String)=lease.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                            val mac=field("mac-address").lowercase()
+                            val name=field("host-name").ifBlank { field("comment") }
+                            if(mac.isNotBlank() && name.isNotBlank()) mac to name else null
+                        }.toMap()
+                        command(listOf("/ip/hotspot/host/print")).map { row ->
+                            fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                            val mac=field("mac-address")
+                            val bridgePort=field("bridge-port")
+                            val deviceName=namesByMac[mac.lowercase()] ?: "غير معروف"
+                            HotspotHost(field("address"),mac,field("server"),field("uptime"),bridgePort.ifBlank{"—"},deviceName)
+                        }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
+                    }
+            
+                fun readHotspotServers(host:String,port:Int,username:String,password:String):List<HotspotServer> =
+                    withApi(host,port,username,password) { command ->
+                        command(listOf("/ip/hotspot/print")).map { row ->
+                            fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                            HotspotServer(field("name").ifBlank{"بدون اسم"},field("interface"),field("profile"),field("address-pool"),field("disabled")!="true")
+                        }
+                    }
 
-              fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
-                  withApi(host,port,username,password) { command ->
-                      val row = command(listOf("/interface/monitor-traffic","=interface=ether1","=once=")).firstOrNull()
-                          ?: throw IllegalStateException("لم تصل قراءة حركة ether1")
-                      fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull() ?: 0L
-                      fun format(bits:Long):String = when {
-                          bits >= 1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000.0)
-                          bits >= 1_000 -> String.format(java.util.Locale.US,"%.1f Kbps",bits/1_000.0)
-                          else -> "$bits bps"
-                      }
-                      mapOf("upload" to format(rate("tx-bits-per-second")),
-                          "download" to format(rate("rx-bits-per-second")))
-                  }
-          
-              fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
-              withApi(host,port,username,password) { command ->
-                  command(listOf("/ip/hotspot/user/print")).map { row ->
-                      fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
-                      HotspotCard(field("name"),field("profile"),field("server"),field("uptime"),field("limit-uptime"),field("disabled")=="true")
-                  }.filter{it.name.isNotBlank()}
-              }
-          fun readHotspotProfiles(host:String,port:Int,username:String,password:String):List<String> =
-              withApi(host,port,username,password) { command ->
-                  command(listOf("/ip/hotspot/user/profile/print")).mapNotNull { row ->
-                      row.firstOrNull{it.startsWith("=name=")}?.substringAfter("=name=")
-                  }.filter{it.isNotBlank()}.distinct()
-              }
-          fun updateHotspotCard(host:String,port:Int,username:String,password:String,name:String,profile:String) {
-              require(profile.isNotBlank()) { "اختر الباقة" }
-              withApi(host,port,username,password) { command ->
-                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                  command(listOf("/ip/hotspot/user/set","=.id=$id","=profile=$profile")); Unit
-              }
-          }
-          fun setHotspotCardDisabled(host:String,port:Int,username:String,password:String,name:String,disabled:Boolean) {
-              withApi(host,port,username,password) { command ->
-                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                  command(listOf(if(disabled) "/ip/hotspot/user/disable" else "/ip/hotspot/user/enable","=.id=$id")); Unit
-              }
-          }
-          fun updateHotspotCardPassword(host:String,port:Int,username:String,password:String,name:String,newPassword:String) {
-              require(newPassword.isNotBlank()) { "اكتب كلمة المرور الجديدة" }
-              withApi(host,port,username,password) { command ->
-                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                  command(listOf("/ip/hotspot/user/set","=.id=$id","=password=$newPassword")); Unit
-              }
-          }
-          fun addHotspotCard(host:String,port:Int,username:String,password:String,name:String,secret:String,profile:String) {
-              require(name.isNotBlank()) { "اكتب اسم الكرت" }
-              withApi(host,port,username,password) { command ->
-                  command(listOf("/ip/hotspot/user/add","=name=$name","=password=$secret","=profile=$profile")); Unit
-              }
-          }
-          fun removeHotspotCard(host:String,port:Int,username:String,password:String,name:String) {
-              withApi(host,port,username,password) { command ->
-                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                  command(listOf("/ip/hotspot/user/remove","=.id=$id")); Unit
-              }
-          }
+                fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
+                    withApi(host,port,username,password) { command ->
+                        val row = command(listOf("/interface/monitor-traffic","=interface=ether1","=once=")).firstOrNull()
+                            ?: throw IllegalStateException("لم تصل قراءة حركة ether1")
+                        fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull() ?: 0L
+                        fun format(bits:Long):String = when {
+                            bits >= 1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000.0)
+                            bits >= 1_000 -> String.format(java.util.Locale.US,"%.1f Kbps",bits/1_000.0)
+                            else -> "$bits bps"
+                        }
+                        mapOf("upload" to format(rate("tx-bits-per-second")),
+                            "download" to format(rate("rx-bits-per-second")))
+                    }
+            
+                fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
+                withApi(host,port,username,password) { command ->
+                    command(listOf("/ip/hotspot/user/print")).map { row ->
+                        fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                        HotspotCard(field("name"),field("profile"),field("server"),field("uptime"),field("limit-uptime"),field("disabled")=="true")
+                    }.filter{it.name.isNotBlank()}
+                }
+            fun readHotspotProfiles(host:String,port:Int,username:String,password:String):List<String> =
+                withApi(host,port,username,password) { command ->
+                    command(listOf("/ip/hotspot/user/profile/print")).mapNotNull { row ->
+                        row.firstOrNull{it.startsWith("=name=")}?.substringAfter("=name=")
+                    }.filter{it.isNotBlank()}.distinct()
+                }
+            fun updateHotspotCard(host:String,port:Int,username:String,password:String,name:String,profile:String) {
+                require(profile.isNotBlank()) { "اختر الباقة" }
+                withApi(host,port,username,password) { command ->
+                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                    command(listOf("/ip/hotspot/user/set","=.id=$id","=profile=$profile")); Unit
+                }
+            }
+            fun setHotspotCardDisabled(host:String,port:Int,username:String,password:String,name:String,disabled:Boolean) {
+                withApi(host,port,username,password) { command ->
+                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                    command(listOf(if(disabled) "/ip/hotspot/user/disable" else "/ip/hotspot/user/enable","=.id=$id")); Unit
+                }
+            }
+            fun updateHotspotCardPassword(host:String,port:Int,username:String,password:String,name:String,newPassword:String) {
+                require(newPassword.isNotBlank()) { "اكتب كلمة المرور الجديدة" }
+                withApi(host,port,username,password) { command ->
+                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                    command(listOf("/ip/hotspot/user/set","=.id=$id","=password=$newPassword")); Unit
+                }
+            }
+            fun addHotspotCard(host:String,port:Int,username:String,password:String,name:String,secret:String,profile:String) {
+                require(name.isNotBlank()) { "اكتب اسم الكرت" }
+                withApi(host,port,username,password) { command ->
+                    command(listOf("/ip/hotspot/user/add","=name=$name","=password=$secret","=profile=$profile")); Unit
+                }
+            }
+            fun removeHotspotCard(host:String,port:Int,username:String,password:String,name:String) {
+                withApi(host,port,username,password) { command ->
+                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                    command(listOf("/ip/hotspot/user/remove","=.id=$id")); Unit
+                }
+            }
 
-          fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
-                  withApi(host, port, username, password) { command ->
-                      command(listOf("/ip/hotspot/active/print")).map { row ->
-                          fun field(key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
-                          val id = row.firstOrNull { it.startsWith("=.id=") }?.substringAfter("=.id=") ?: ""
-                          ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"), field("server"))
-                      }.filter { it.id.isNotBlank() }
-                  }
-          
-          
-          
-              private fun writeLength(out: BufferedOutputStream, length: Int) {
-                  when {
-                      length < 0x80 -> out.write(length)
-                      length < 0x4000 -> { out.write((length shr 8) or 0x80); out.write(length and 0xff) }
-                      length < 0x200000 -> { out.write((length shr 16) or 0xC0); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
-                      length < 0x10000000 -> { out.write((length shr 24) or 0xE0); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
-                      else -> { out.write(0xF0); out.write((length shr 24) and 0xff); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
-                  }
-              }
-              private fun readLength(input: BufferedInputStream): Int {
-                  val b=input.read(); if(b<0) throw IllegalStateException("انتهى اتصال الراوتر")
-                  return when {
-                      (b and 0x80)==0 -> b
-                      (b and 0xC0)==0x80 -> ((b and 0x3f) shl 8) or readByte(input)
-                      (b and 0xE0)==0xC0 -> ((b and 0x1f) shl 16) or (readByte(input) shl 8) or readByte(input)
-                      (b and 0xF0)==0xE0 -> ((b and 0x0f) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
-                      else -> (readByte(input) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
-                  }
-              }
-              private fun readByte(input: BufferedInputStream): Int {
-                  val v=input.read(); if(v<0) throw IllegalStateException("انتهى اتصال الراوتر"); return v
-              }
-          }
-          
-          
-          data class OpenWrtClient(val mac:String,val ip:String,val name:String,val deviceType:String="غير محدد")
-          data class OpenWrtDevice(val ip:String,val state:String,val host:String="—",val model:String="—",val clients:String="غير متاح",val clientDetails:List<OpenWrtClient> = emptyList())
-          class OpenWrtPasswordStore(c:Context) {
-              private val prefs=c.getSharedPreferences("albarq_openwrt",Context.MODE_PRIVATE)
-              private val alias="AlbarqOpenWrtKey"
-              private fun secret():SecretKey {
-                  val ks=KeyStore.getInstance("AndroidKeyStore").apply{load(null)}
-                  (ks.getKey(alias,null) as? SecretKey)?.let{return it}
-                  val g=KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES,"AndroidKeyStore")
-                  g.init(KeyGenParameterSpec.Builder(alias,KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT).setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
-                  return g.generateKey()
-              }
-              fun save(v:String){val c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,secret());prefs.edit().putString("pw",Base64.encodeToString(c.iv+c.doFinal(v.toByteArray()),Base64.NO_WRAP)).apply()}
-              fun load():String=runCatching{val b=Base64.decode(prefs.getString("pw",""),Base64.NO_WRAP);val c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.DECRYPT_MODE,secret(),GCMParameterSpec(128,b.copyOfRange(0,12)));String(c.doFinal(b.copyOfRange(12,b.size)))}.getOrDefault("")
-          }
-          private fun openWrtSsh(ip:String,pw:String,cmd:String):String {
-              val session=JSch().getSession("root",ip,22);session.setPassword(pw)
-              val cfg=Properties();cfg.put("StrictHostKeyChecking","no");session.setConfig(cfg);session.connect(2200)
-              try {val ch=session.openChannel("exec") as ChannelExec;ch.setCommand(cmd);ch.setInputStream(null);val out=java.io.ByteArrayOutputStream();ch.outputStream=out;ch.connect(2200)
-                  val end=System.currentTimeMillis()+2200;while(!ch.isClosed && System.currentTimeMillis()<end) Thread.sleep(50)
-                  val result=out.toString("UTF-8").trim();ch.disconnect();return result
-              } finally {session.disconnect()}
-          }
-          private fun scanOpenWrt(pw:String):List<OpenWrtDevice> {
-              val list=mutableListOf<OpenWrtDevice>()
-              for(n in 10..35) {
-                  val ip="10.0.0."+n
-                  try {
-                      val host=openWrtSsh(ip,pw,"cat /proc/sys/kernel/hostname").ifBlank{"OpenWrt"}
-                      val model=openWrtSsh(ip,pw,"cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name").ifBlank{"غير معروف"}
-                      val clientsCmd = "iw dev | awk '/Interface/{print \$2}' | while read iface; do iw dev \$iface station dump 2>/dev/null | awk '/^Station /{print \$2}'; done | sort -u | while read clientmac; do [ -n \$clientmac ] || continue; clientip=\$(ip neigh show | awk -v m=\$clientmac 'tolower(\$5)==tolower(m){print \$1;exit}'); clientname=\$(awk -v m=\$clientmac 'tolower(\$2)==tolower(m){print \$4;exit}' /tmp/dhcp.leases 2>/dev/null); printf '%s|%s|%s\\n' \$clientmac \"\$clientip\" \"\$clientname\"; done"
-                      val clientRaw=runCatching{openWrtSsh(ip,pw,clientsCmd)}.getOrDefault("")
-                      val clientList=clientRaw.lines().mapNotNull { line ->
-                          val parts=line.split("|")
-                          if(parts.size>=3 && parts[0].matches(Regex("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}"))) OpenWrtClient(parts[0],parts[1],parts[2]) else null
-                      }.distinctBy{it.mac}
-                      val count=clientList.size.toString()
-                      list.add(OpenWrtDevice(ip,"دخول ناجح",host.lines().first(),model.lines().first(),count,clientList))
-                  } catch(e:Exception) {
-                      val reachable=runCatching{Socket().use{it.connect(InetSocketAddress(ip,22),500)};true}.getOrDefault(false)
-                      if(reachable) list.add(OpenWrtDevice(ip,"SSH متاح؛ تعذر تسجيل الدخول"))
-                  }
-              }
-              return list
-          }
-          @Composable fun OpenWrtDialog(ctx:Context,onClose:()->Unit) {
-              val store=remember{OpenWrtPasswordStore(ctx)}
-              var pw by remember{mutableStateOf(store.load())}
-              var busy by remember{mutableStateOf(false)}
-              var status by remember{mutableStateOf("النطاق 10.0.0.10 إلى 10.0.0.35")}
-              var devices by remember{mutableStateOf<List<OpenWrtDevice>>(emptyList())}
-              val scope=rememberCoroutineScope()
-              AlertDialog(onDismissRequest=onClose,title={Text("فحص أجهزة OpenWrt")},text={
-                  Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                      OutlinedTextField(pw,{pw=it},label={Text("كلمة مرور root المشتركة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-                      Text("تحفظ مشفّرة على الهاتف. الفحص لا يغيّر إعدادات الراوترات.",color=Muted,fontSize=11.sp)
-                      Text(status,color=Cyan,fontSize=11.sp)
-                      if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                      LazyColumn(Modifier.heightIn(max=300.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                          items(devices) { dev ->
-                              Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
-                                  Column(Modifier.padding(8.dp)) {
-                                      Text(dev.ip+" • "+dev.state,color=Color.White,fontSize=12.sp)
-                                      if(dev.host!="—") {
-                                          Text(dev.host+" | "+dev.model+" | أجهزة لاسلكية: "+dev.clients,color=Muted,fontSize=11.sp)
-                                          dev.clientDetails.forEach { phone ->
-                                              Text("📱 "+phone.name+" • "+phone.ip+" • "+phone.mac+" • النوع: "+phone.deviceType,color=Color.White,fontSize=10.sp)
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              },confirmButton={TextButton(enabled=!busy && pw.isNotBlank(),onClick={
-                  store.save(pw);busy=true;devices=emptyList();status="جارٍ فحص 26 عنواناً..."
-                  scope.launch {
-                      val result=withContext(Dispatchers.IO){runCatching{scanOpenWrt(pw)}}
-                      result.onSuccess{devices=it;status="انتهى الفحص؛ أجهزة SSH المستجيبة: "+it.size}
-                          .onFailure{status="تعذر الفحص: "+it.message}
-                      busy=false
-                  }
-              }){Text(if(busy)"جارٍ الفحص..." else "حفظ وفحص")}},dismissButton={TextButton(onClick=onClose){Text("إغلاق")}})
-          }
-          
+            fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
+                    withApi(host, port, username, password) { command ->
+                        command(listOf("/ip/hotspot/active/print")).map { row ->
+                            fun field(key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
+                            val id = row.firstOrNull { it.startsWith("=.id=") }?.substringAfter("=.id=") ?: ""
+                            ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"), field("server"))
+                        }.filter { it.id.isNotBlank() }
+                    }
+            
+            
+            
+                private fun writeLength(out: BufferedOutputStream, length: Int) {
+                    when {
+                        length < 0x80 -> out.write(length)
+                        length < 0x4000 -> { out.write((length shr 8) or 0x80); out.write(length and 0xff) }
+                        length < 0x200000 -> { out.write((length shr 16) or 0xC0); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
+                        length < 0x10000000 -> { out.write((length shr 24) or 0xE0); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
+                        else -> { out.write(0xF0); out.write((length shr 24) and 0xff); out.write((length shr 16) and 0xff); out.write((length shr 8) and 0xff); out.write(length and 0xff) }
+                    }
+                }
+                private fun readLength(input: BufferedInputStream): Int {
+                    val b=input.read(); if(b<0) throw IllegalStateException("انتهى اتصال الراوتر")
+                    return when {
+                        (b and 0x80)==0 -> b
+                        (b and 0xC0)==0x80 -> ((b and 0x3f) shl 8) or readByte(input)
+                        (b and 0xE0)==0xC0 -> ((b and 0x1f) shl 16) or (readByte(input) shl 8) or readByte(input)
+                        (b and 0xF0)==0xE0 -> ((b and 0x0f) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
+                        else -> (readByte(input) shl 24) or (readByte(input) shl 16) or (readByte(input) shl 8) or readByte(input)
+                    }
+                }
+                private fun readByte(input: BufferedInputStream): Int {
+                    val v=input.read(); if(v<0) throw IllegalStateException("انتهى اتصال الراوتر"); return v
+                }
+            }
+            
+            
+            data class OpenWrtClient(val mac:String,val ip:String,val name:String,val deviceType:String="غير محدد")
+            data class OpenWrtDevice(val ip:String,val state:String,val host:String="—",val model:String="—",val clients:String="غير متاح",val clientDetails:List<OpenWrtClient> = emptyList())
+            class OpenWrtPasswordStore(c:Context) {
+                private val prefs=c.getSharedPreferences("albarq_openwrt",Context.MODE_PRIVATE)
+                private val alias="AlbarqOpenWrtKey"
+                private fun secret():SecretKey {
+                    val ks=KeyStore.getInstance("AndroidKeyStore").apply{load(null)}
+                    (ks.getKey(alias,null) as? SecretKey)?.let{return it}
+                    val g=KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES,"AndroidKeyStore")
+                    g.init(KeyGenParameterSpec.Builder(alias,KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT).setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
+                    return g.generateKey()
+                }
+                fun save(v:String){val c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,secret());prefs.edit().putString("pw",Base64.encodeToString(c.iv+c.doFinal(v.toByteArray()),Base64.NO_WRAP)).apply()}
+                fun load():String=runCatching{val b=Base64.decode(prefs.getString("pw",""),Base64.NO_WRAP);val c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.DECRYPT_MODE,secret(),GCMParameterSpec(128,b.copyOfRange(0,12)));String(c.doFinal(b.copyOfRange(12,b.size)))}.getOrDefault("")
+            }
+            private fun openWrtSsh(ip:String,pw:String,cmd:String):String {
+                val session=JSch().getSession("root",ip,22);session.setPassword(pw)
+                val cfg=Properties();cfg.put("StrictHostKeyChecking","no");session.setConfig(cfg);session.connect(2200)
+                try {val ch=session.openChannel("exec") as ChannelExec;ch.setCommand(cmd);ch.setInputStream(null);val out=java.io.ByteArrayOutputStream();ch.outputStream=out;ch.connect(2200)
+                    val end=System.currentTimeMillis()+2200;while(!ch.isClosed && System.currentTimeMillis()<end) Thread.sleep(50)
+                    val result=out.toString("UTF-8").trim();ch.disconnect();return result
+                } finally {session.disconnect()}
+            }
+            private fun scanOpenWrt(pw:String):List<OpenWrtDevice> {
+                val list=mutableListOf<OpenWrtDevice>()
+                for(n in 10..35) {
+                    val ip="10.0.0."+n
+                    try {
+                        val host=openWrtSsh(ip,pw,"cat /proc/sys/kernel/hostname").ifBlank{"OpenWrt"}
+                        val model=openWrtSsh(ip,pw,"cat /tmp/sysinfo/model 2>/dev/null || cat /tmp/sysinfo/board_name").ifBlank{"غير معروف"}
+                        val clientsCmd = "iw dev | awk '/Interface/{print \$2}' | while read iface; do iw dev \$iface station dump 2>/dev/null | awk '/^Station /{print \$2}'; done | sort -u | while read clientmac; do [ -n \$clientmac ] || continue; clientip=\$(ip neigh show | awk -v m=\$clientmac 'tolower(\$5)==tolower(m){print \$1;exit}'); clientname=\$(awk -v m=\$clientmac 'tolower(\$2)==tolower(m){print \$4;exit}' /tmp/dhcp.leases 2>/dev/null); printf '%s|%s|%s\\n' \$clientmac \"\$clientip\" \"\$clientname\"; done"
+                        val clientRaw=runCatching{openWrtSsh(ip,pw,clientsCmd)}.getOrDefault("")
+                        val clientList=clientRaw.lines().mapNotNull { line ->
+                            val parts=line.split("|")
+                            if(parts.size>=3 && parts[0].matches(Regex("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}"))) OpenWrtClient(parts[0],parts[1],parts[2]) else null
+                        }.distinctBy{it.mac}
+                        val count=clientList.size.toString()
+                        list.add(OpenWrtDevice(ip,"دخول ناجح",host.lines().first(),model.lines().first(),count,clientList))
+                    } catch(e:Exception) {
+                        val reachable=runCatching{Socket().use{it.connect(InetSocketAddress(ip,22),500)};true}.getOrDefault(false)
+                        if(reachable) list.add(OpenWrtDevice(ip,"SSH متاح؛ تعذر تسجيل الدخول"))
+                    }
+                }
+                return list
+            }
+            @Composable fun OpenWrtDialog(ctx:Context,onClose:()->Unit) {
+                val store=remember{OpenWrtPasswordStore(ctx)}
+                var pw by remember{mutableStateOf(store.load())}
+                var busy by remember{mutableStateOf(false)}
+                var status by remember{mutableStateOf("النطاق 10.0.0.10 إلى 10.0.0.35")}
+                var devices by remember{mutableStateOf<List<OpenWrtDevice>>(emptyList())}
+                val scope=rememberCoroutineScope()
+                AlertDialog(onDismissRequest=onClose,title={Text("فحص أجهزة OpenWrt")},text={
+                    Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(pw,{pw=it},label={Text("كلمة مرور root المشتركة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+                        Text("تحفظ مشفّرة على الهاتف. الفحص لا يغيّر إعدادات الراوترات.",color=Muted,fontSize=11.sp)
+                        Text(status,color=Cyan,fontSize=11.sp)
+                        if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        LazyColumn(Modifier.heightIn(max=300.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                            items(devices) { dev ->
+                                Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(8.dp)) {
+                                        Text(dev.ip+" • "+dev.state,color=Color.White,fontSize=12.sp)
+                                        if(dev.host!="—") {
+                                            Text(dev.host+" | "+dev.model+" | أجهزة لاسلكية: "+dev.clients,color=Muted,fontSize=11.sp)
+                                            dev.clientDetails.forEach { phone ->
+                                                Text("📱 "+phone.name+" • "+phone.ip+" • "+phone.mac+" • النوع: "+phone.deviceType,color=Color.White,fontSize=10.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },confirmButton={TextButton(enabled=!busy && pw.isNotBlank(),onClick={
+                    store.save(pw);busy=true;devices=emptyList();status="جارٍ فحص 26 عنواناً..."
+                    scope.launch {
+                        val result=withContext(Dispatchers.IO){runCatching{scanOpenWrt(pw)}}
+                        result.onSuccess{devices=it;status="انتهى الفحص؛ أجهزة SSH المستجيبة: "+it.size}
+                            .onFailure{status="تعذر الفحص: "+it.message}
+                        busy=false
+                    }
+                }){Text(if(busy)"جارٍ الفحص..." else "حفظ وفحص")}},dismissButton={TextButton(onClick=onClose){Text("إغلاق")}})
+            }
+            
           KOTLIN
           python3 - <<'PY'
           from pathlib import Path
