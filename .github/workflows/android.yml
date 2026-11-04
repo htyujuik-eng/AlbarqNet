@@ -562,8 +562,7 @@ jobs:
               },dismissButton={TextButton(onClick={deleteTarget=null}){Text("إلغاء")}}) }
           }
 
-          @Composable
-                        passwordTarget?.let { target -> AlertDialog(onDismissRequest={passwordTarget=null},title={Text("تغيير كلمة مرور $target")},text={
+          passwordTarget?.let { target -> AlertDialog(onDismissRequest={passwordTarget=null},title={Text("تغيير كلمة مرور $target")},text={
                   OutlinedTextField(value=newPassword,onValueChange={newPassword=it},label={Text("كلمة المرور الجديدة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
               },confirmButton={TextButton(enabled=newPassword.isNotBlank()&&!busy,onClick={scope.launch {
                   busy=true
@@ -571,7 +570,8 @@ jobs:
                   r.onSuccess{note="تم تغيير كلمة المرور";passwordTarget=null;reload()}.onFailure{note=it.message ?: "فشل تغيير كلمة المرور"}
                   busy=false
               }}){Text("حفظ")}},dismissButton={TextButton(onClick={passwordTarget=null}){Text("إلغاء")}}) }
-fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
+          @Composable
+          fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
               var page by remember { mutableStateOf("ACTIVE") }
               AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
                   Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
