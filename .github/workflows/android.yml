@@ -814,6 +814,20 @@ jobs:
                       HotspotCard(field("name"),field("profile"),field("server"),field("uptime"),field("limit-uptime"))
                   }.filter{it.name.isNotBlank()}
               }
+          fun readHotspotProfiles(host:String,port:Int,username:String,password:String):List<String> =
+              withApi(host,port,username,password) { command ->
+                  command(listOf("/ip/hotspot/user/profile/print")).mapNotNull { row ->
+                      row.firstOrNull{it.startsWith("=name=")}?.substringAfter("=name=")
+                  }.filter{it.isNotBlank()}.distinct()
+              }
+          fun updateHotspotCard(host:String,port:Int,username:String,password:String,name:String,profile:String) {
+              require(profile.isNotBlank()) { "اختر الباقة" }
+              withApi(host,port,username,password) { command ->
+                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                  command(listOf("/ip/hotspot/user/set","=.id=$id","=profile=$profile")); Unit
+              }
+          }
           fun addHotspotCard(host:String,port:Int,username:String,password:String,name:String,secret:String,profile:String) {
               require(name.isNotBlank()) { "اكتب اسم الكرت" }
               withApi(host,port,username,password) { command ->
