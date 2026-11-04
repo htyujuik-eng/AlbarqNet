@@ -155,7 +155,7 @@ jobs:
                               router.activeUsers = data.first["active"] ?: "0"
                               router.hostEntries = data.second.first
                               router.activeSessions = data.second.second
-                              router.uploadRate = data.third["upload"] ?: "غير متاح"
+                              router.uploadRate = data.third.first["upload"] ?: "غير متاح"
                               router.downloadRate = data.third.first["download"] ?: "غير متاح"
                               router.hotspotServers = data.third.second
                               router.lastError = ""
