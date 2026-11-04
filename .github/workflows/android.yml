@@ -727,7 +727,7 @@ jobs:
                   withApi(host, port, username, password) { command ->
                       command(listOf("/ip/hotspot/active/print")).map { row ->
                           fun field(key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
-                          val id = row.firstOrNull { it.startsWith(".id=") }?.substringAfter(".id=") ?: ""
+                          val id = row.firstOrNull { it.startsWith("=.id=") }?.substringAfter("=.id=") ?: ""
                           ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"))
                       }.filter { it.id.isNotBlank() }
                   }
