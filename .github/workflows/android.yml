@@ -82,7 +82,7 @@ jobs:
           private val Cyan = Color(0xFF45D5F5)
           private val Muted = Color(0xFF9CB2C8)
           
-          data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
+          data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String, val server: String = "")
           data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String,val deviceName:String="غير معروف")
           data class HotspotServer(val name:String,val interfaceName:String,val profile:String,val addressPool:String,val enabled:Boolean)
           
@@ -496,7 +496,7 @@ jobs:
                                       Column(Modifier.padding(9.dp)) {
                                           val hostMatch = router.hostEntries.firstOrNull { it.mac.equals(user.mac,ignoreCase=true) || (it.address.isNotBlank() && it.address==user.address) }
                                           Text(hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" } ?: "الجهاز: غير معروف",color=Cyan,fontWeight=FontWeight.Bold)
-                                          Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)
+                                          Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)\n                                          Text("السيرفر: ${user.server.ifBlank{"—"}}",color=Cyan,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
                                           Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
                                           Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
                                       }
@@ -728,7 +728,7 @@ jobs:
                       command(listOf("/ip/hotspot/active/print")).map { row ->
                           fun field(key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
                           val id = row.firstOrNull { it.startsWith("=.id=") }?.substringAfter("=.id=") ?: ""
-                          ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"))
+                          ActiveHotspotUser(id, field("user"), field("address"), field("mac-address"), field("uptime"), field("server"))
                       }.filter { it.id.isNotBlank() }
                   }
           
