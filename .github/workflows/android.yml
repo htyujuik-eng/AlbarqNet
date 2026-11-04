@@ -84,6 +84,7 @@ jobs:
           
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String)
           data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String,val deviceName:String="غير معروف")
+          data class HotspotServer(val name:String,val interfaceName:String,val profile:String,val addressPool:String,val enabled:Boolean)
           
           data class RouterEntry(
               val name: String, val host: String, val port: String,
@@ -96,6 +97,7 @@ jobs:
           ) {
               var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
               var hostEntries by mutableStateOf<List<HotspotHost>>(emptyList())
+              var hotspotServers by mutableStateOf<List<HotspotServer>>(emptyList())
           }
           
           class MainActivity : ComponentActivity() {
@@ -139,7 +141,8 @@ jobs:
                                   val hosts = api.readHosts(router.host, portNumber, router.username, router.password)
                                   val active = api.readActiveUsers(router.host, portNumber, router.username, router.password)
                                   val traffic = api.readTraffic(router.host, portNumber, router.username, router.password)
-                                  Triple(status, hosts to active, traffic)
+                                  val servers = api.readHotspotServers(router.host, portNumber, router.username, router.password)
+                                  Triple(status, hosts to active, traffic to servers)
                               }
                           }
                           result.onSuccess { data ->
@@ -153,7 +156,8 @@ jobs:
                               router.hostEntries = data.second.first
                               router.activeSessions = data.second.second
                               router.uploadRate = data.third["upload"] ?: "غير متاح"
-                              router.downloadRate = data.third["download"] ?: "غير متاح"
+                              router.downloadRate = data.third.first["download"] ?: "غير متاح"
+                              router.hotspotServers = data.third.second
                               router.lastError = ""
                           }.onFailure {
                               router.status = "فشل الاتصال"
@@ -306,6 +310,20 @@ jobs:
                                   }
                               }
                               Text("HOST يعرض الأجهزة التي يتعرف عليها Hotspot في الميكروتك.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                              Spacer(Modifier.height(12.dp))
+                              Text("سيرفرات الهوتسبوت", color=Color.White, fontSize=18.sp, fontWeight=FontWeight.Bold)
+                              routers.forEach { r ->
+                                  Surface(color=Panel, shape=RoundedCornerShape(12.dp), modifier=Modifier.fillMaxWidth().padding(top=6.dp)) {
+                                      Column(Modifier.padding(10.dp), verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                                          Text(r.name, color=Cyan, fontWeight=FontWeight.Bold)
+                                          if(r.hotspotServers.isEmpty()) Text("لا توجد سيرفرات أو لم يتم تحميلها", color=Muted, fontSize=11.sp)
+                                          r.hotspotServers.forEach { srv ->
+                                              Text("${srv.name}  •  ${if(srv.enabled) "مفعّل" else "متوقف"}", color=Color.White)
+                                              Text("الواجهة: ${srv.interfaceName.ifBlank{"—"}}  |  Profile: ${srv.profile.ifBlank{"—"}}  |  IP Pool: ${srv.addressPool.ifBlank{"—"}}", color=Muted, fontSize=10.sp)
+                                          }
+                                      }
+                                  }
+                              }
                           }
                           item {
                               Row(verticalAlignment = Alignment.CenterVertically) {
@@ -476,7 +494,9 @@ jobs:
                               items(router.activeSessions) { user ->
                                   Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
                                       Column(Modifier.padding(9.dp)) {
-                                          Text(user.name.ifBlank{"بدون اسم"},color=Color.White,fontWeight=FontWeight.Bold)
+                                          val hostMatch = router.hostEntries.firstOrNull { it.mac.equals(user.mac,ignoreCase=true) || (it.address.isNotBlank() && it.address==user.address) }
+                                          Text(hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" } ?: "الجهاز: غير معروف",color=Cyan,fontWeight=FontWeight.Bold)
+                                          Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)
                                           Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
                                           Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
                                       }
@@ -681,6 +701,14 @@ jobs:
                       }.filter{it.address.isNotBlank() || it.mac.isNotBlank()}
                   }
           
+              fun readHotspotServers(host:String,port:Int,username:String,password:String):List<HotspotServer> =
+                  withApi(host,port,username,password) { command ->
+                      command(listOf("/ip/hotspot/print")).map { row ->
+                          fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                          HotspotServer(field("name").ifBlank{"بدون اسم"},field("interface"),field("profile"),field("address-pool"),field("disabled")!="true")
+                      }
+                  }
+
               fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
                   withApi(host,port,username,password) { command ->
                       val row = command(listOf("/interface/monitor-traffic","=interface=ether1","=once=")).firstOrNull()
