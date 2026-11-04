@@ -84,7 +84,7 @@ jobs:
           
           data class ActiveHotspotUser(val id: String, val name: String, val address: String, val mac: String, val uptime: String, val server: String = "")
           data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String,val deviceName:String="غير معروف")
-          data class HotspotCard(val name:String,val profile:String,val server:String,val uptime:String,val limitUptime:String)
+          data class HotspotCard(val name:String,val profile:String,val server:String,val uptime:String,val limitUptime:String,val disabled:Boolean=false)
           data class HotspotServer(val name:String,val interfaceName:String,val profile:String,val addressPool:String,val enabled:Boolean)
           
           data class RouterEntry(
@@ -493,7 +493,7 @@ jobs:
               var password by remember { mutableStateOf("") }
               var profile by remember { mutableStateOf("default") }
               var searchText by remember { mutableStateOf("") }
-              var deleteTarget by remember { mutableStateOf<String?>(null) }
+              var deleteTarget by remember { mutableStateOf<String?>(null) }\n              var passwordTarget by remember { mutableStateOf<String?>(null) }\n              var newPassword by remember { mutableStateOf("") }
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
                   busy=true
@@ -526,9 +526,9 @@ jobs:
                                       Column(Modifier.weight(1f)) {
                                           Text(c.name,color=Color.White,fontWeight=FontWeight.Bold)
                                           Text("الباقة: ${c.profile.ifBlank{"default"}} • السيرفر: ${c.server.ifBlank{"all"}}",color=Muted,fontSize=10.sp)
-                                          Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                          Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)\n                                      Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
                                       }
-                                      TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
+                                      TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}\n                                          TextButton(enabled=!busy,onClick={scope.launch { busy=true; val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}; r.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "فشل تغيير الحالة"};busy=false })}{Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFB45B))}\n                                          TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                   }
                               }
                           }
@@ -563,7 +563,15 @@ jobs:
           }
 
           @Composable
-          fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
+                        passwordTarget?.let { target -> AlertDialog(onDismissRequest={passwordTarget=null},title={Text("تغيير كلمة مرور $target")},text={
+                  OutlinedTextField(value=newPassword,onValueChange={newPassword=it},label={Text("كلمة المرور الجديدة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+              },confirmButton={TextButton(enabled=newPassword.isNotBlank()&&!busy,onClick={scope.launch {
+                  busy=true
+                  val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCardPassword(router.host,router.port.toInt(),router.username,router.password,target,newPassword)}}
+                  r.onSuccess{note="تم تغيير كلمة المرور";passwordTarget=null;reload()}.onFailure{note=it.message ?: "فشل تغيير كلمة المرور"}
+                  busy=false
+              }}){Text("حفظ")}},dismissButton={TextButton(onClick={passwordTarget=null}){Text("إلغاء")}}) }
+fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
               var page by remember { mutableStateOf("ACTIVE") }
               AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
                   Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -811,7 +819,7 @@ jobs:
               withApi(host,port,username,password) { command ->
                   command(listOf("/ip/hotspot/user/print")).map { row ->
                       fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
-                      HotspotCard(field("name"),field("profile"),field("server"),field("uptime"),field("limit-uptime"))
+                      HotspotCard(field("name"),field("profile"),field("server"),field("uptime"),field("limit-uptime"),field("disabled")=="true")
                   }.filter{it.name.isNotBlank()}
               }
           fun readHotspotProfiles(host:String,port:Int,username:String,password:String):List<String> =
@@ -826,6 +834,21 @@ jobs:
                   val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
                   val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
                   command(listOf("/ip/hotspot/user/set","=.id=$id","=profile=$profile")); Unit
+              }
+          }
+          fun setHotspotCardDisabled(host:String,port:Int,username:String,password:String,name:String,disabled:Boolean) {
+              withApi(host,port,username,password) { command ->
+                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                  command(listOf(if(disabled) "/ip/hotspot/user/disable" else "/ip/hotspot/user/enable","=.id=$id")); Unit
+              }
+          }
+          fun updateHotspotCardPassword(host:String,port:Int,username:String,password:String,name:String,newPassword:String) {
+              require(newPassword.isNotBlank()) { "اكتب كلمة المرور الجديدة" }
+              withApi(host,port,username,password) { command ->
+                  val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
+                  val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
+                  command(listOf("/ip/hotspot/user/set","=.id=$id","=password=$newPassword")); Unit
               }
           }
           fun addHotspotCard(host:String,port:Int,username:String,password:String,name:String,secret:String,profile:String) {
