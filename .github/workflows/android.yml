@@ -493,7 +493,9 @@ jobs:
               var password by remember { mutableStateOf("") }
               var profile by remember { mutableStateOf("default") }
               var searchText by remember { mutableStateOf("") }
-              var deleteTarget by remember { mutableStateOf<String?>(null) }\n              var passwordTarget by remember { mutableStateOf<String?>(null) }\n              var newPassword by remember { mutableStateOf("") }
+              var deleteTarget by remember { mutableStateOf<String?>(null) }
+                            var passwordTarget by remember { mutableStateOf<String?>(null) }
+                            var newPassword by remember { mutableStateOf("") }
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
                   busy=true
@@ -526,7 +528,8 @@ jobs:
                                       Column(Modifier.weight(1f)) {
                                           Text(c.name,color=Color.White,fontWeight=FontWeight.Bold)
                                           Text("الباقة: ${c.profile.ifBlank{"default"}} • السيرفر: ${c.server.ifBlank{"all"}}",color=Muted,fontSize=10.sp)
-                                          Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)\n                                      Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
+                                          Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
+                                                                                Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
                                       }
                                       TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}\n                                          TextButton(enabled=!busy,onClick={scope.launch { busy=true; val r=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}; r.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "فشل تغيير الحالة"};busy=false })}{Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFB45B))}\n                                          TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                   }
