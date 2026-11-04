@@ -442,7 +442,7 @@ jobs:
                       }
                   )
                   cardsRouter?.let { router -> HotspotCardsDialog(router,{cardsRouter=null}) }
-                   selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }
+                   selectedRouter?.let { router -> ActiveUsersDialog(router, { selectedRouter = null }) }
               }
           }
           
@@ -554,6 +554,7 @@ jobs:
               },dismissButton={TextButton(onClick={deleteTarget=null}){Text("إلغاء")}}) }
           }
 
+          @Composable
           fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
               var page by remember { mutableStateOf("ACTIVE") }
               AlertDialog(onDismissRequest=onDismiss,title={Text("أجهزة ومستخدمو ${router.name}")},text={
