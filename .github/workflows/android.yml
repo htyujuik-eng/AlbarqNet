@@ -494,6 +494,8 @@ jobs:
               var profile by remember { mutableStateOf("default") }
               var searchText by remember { mutableStateOf("") }
               var deleteTarget by remember { mutableStateOf<String?>(null) }
+              var passwordTarget by remember { mutableStateOf<String?>(null) }
+              var newPassword by remember { mutableStateOf("") }
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
                   busy=true
@@ -538,6 +540,7 @@ jobs:
                                                       busy=false
                                                   }
                                               }){Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFC266))}
+                                              TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}
                                               TextButton(enabled=!busy,onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                           }
                                   }
@@ -560,6 +563,20 @@ jobs:
                       busy=false
                   }
               }){Text("حفظ")}},dismissButton={TextButton(onClick={addOpen=false}){Text("إلغاء")}})
+              passwordTarget?.let { target ->
+                  AlertDialog(onDismissRequest={passwordTarget=null;newPassword=""},title={Text("تغيير كلمة مرور $target")},text={
+                      OutlinedTextField(value=newPassword,onValueChange={newPassword=it},label={Text("كلمة المرور الجديدة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
+                  },confirmButton={
+                      TextButton(enabled=newPassword.isNotBlank()&&!busy,onClick={
+                          scope.launch {
+                              busy=true
+                              val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCardPassword(router.host,router.port.toInt(),router.username,router.password,target,newPassword)}}
+                              result.onSuccess{note="تم تغيير كلمة مرور $target";passwordTarget=null;newPassword=""}.onFailure{note=it.message ?: "تعذر تغيير كلمة المرور"}
+                              busy=false
+                          }
+                      }){Text("حفظ")}
+                  },dismissButton={TextButton(onClick={passwordTarget=null;newPassword=""}){Text("إلغاء")}})
+              }
               deleteTarget?.let { target -> AlertDialog(onDismissRequest={deleteTarget=null},title={Text("تأكيد الحذف")},text={Text("حذف الكرت $target من الراوتر؟")},confirmButton={
                   TextButton(onClick={
                       deleteTarget=null
