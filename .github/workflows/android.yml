@@ -650,10 +650,13 @@ jobs:
                                 items(router.activeSessions) { user ->
                                     Surface(color=Panel,shape=RoundedCornerShape(10.dp),modifier=Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(9.dp)) {
-                                            val hostMatch = router.hostEntries.firstOrNull { it.mac.equals(user.mac,ignoreCase=true) || (it.address.isNotBlank() && it.address==user.address) }
-                                            Text(hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" } ?: "الجهاز: غير معروف",color=Cyan,fontWeight=FontWeight.Bold)
+                                            val hostMatch = router.hostEntries.firstOrNull { user.mac.isNotBlank() && it.mac.equals(user.mac,ignoreCase=true) }
+                                                ?: router.hostEntries.firstOrNull { user.mac.isBlank() && user.address.isNotBlank() && it.address==user.address }
+                                            val knownDeviceName = hostMatch?.deviceName?.takeIf { it.isNotBlank() && it!="غير معروف" }
+                                            Text("اسم الجهاز: ${knownDeviceName ?: "غير معروف"}",color=Cyan,fontWeight=FontWeight.Bold)
                                             Text("المستخدم: ${user.name.ifBlank{"بدون اسم"}}",color=Color.White,fontWeight=FontWeight.Bold)
                                             Text("السيرفر: ${user.server.ifBlank{"—"}}",color=Cyan,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
+                                            Text("منفذ الراوتر: ${hostMatch?.interfaceName?.takeIf { it.isNotBlank() } ?: "—"}",color=Muted,fontSize=10.sp)
                                             Text("IP: ${user.address}  •  MAC: ${user.mac}",color=Muted,fontSize=10.sp)
                                             Text("مدة الاتصال: ${user.uptime}",color=Muted,fontSize=11.sp)
                                         }
