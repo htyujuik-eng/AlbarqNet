@@ -487,6 +487,10 @@ jobs:
           @Composable
           fun HotspotCardsDialog(router:RouterEntry,onDismiss:()->Unit) {
               var cards by remember { mutableStateOf<List<HotspotCard>>(emptyList()) }
+              var profiles by remember { mutableStateOf<List<String>>(listOf("default")) }
+              var profileMenu by remember { mutableStateOf(false) }
+              var profileTarget by remember { mutableStateOf<String?>(null) }
+              var selectedProfile by remember { mutableStateOf("default") }
               var busy by remember { mutableStateOf(false) }
               var note by remember { mutableStateOf("") }
               var addOpen by remember { mutableStateOf(false) }
@@ -500,8 +504,18 @@ jobs:
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
                   busy=true
-                  val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().readHotspotCards(router.host,router.port.toInt(),router.username,router.password)}}
-                  result.onSuccess{cards=it;note="تم تحميل ${it.size} كرت"}.onFailure{note=it.message ?: "تعذر التحميل"}
+                  val result=withContext(Dispatchers.IO){runCatching{
+                      val api=RouterOsApiClient()
+                      val loadedProfiles=api.readHotspotProfiles(router.host,router.port.toInt(),router.username,router.password)
+                      val loadedCards=api.readHotspotCards(router.host,router.port.toInt(),router.username,router.password)
+                      loadedProfiles to loadedCards
+                  }}
+                  result.onSuccess{data->
+                      profiles=data.first.ifEmpty{listOf("default")}
+                      cards=data.second
+                      if(profile !in profiles) profile=profiles.first()
+                      note="تم تحميل ${cards.size} كرت و${profiles.size} باقة"
+                  }.onFailure{note=it.message ?: "تعذر التحميل"}
                   busy=false
               } }
               LaunchedEffect(Unit){reload()}
@@ -541,6 +555,7 @@ jobs:
                                                       busy=false
                                                   }
                                               }){Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFC266))}
+                                              TextButton(enabled=!busy,onClick={profileTarget=c.name;selectedProfile=c.profile.ifBlank{"default"}}){Text("تغيير الباقة")}
                                               TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}
                                               TextButton(enabled=!busy,onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                           }
@@ -554,7 +569,13 @@ jobs:
                   Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
                       OutlinedTextField(name,{name=it},label={Text("اسم المستخدم / رقم الكرت")},singleLine=true)
                       OutlinedTextField(password,{password=it},label={Text("كلمة المرور")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-                      OutlinedTextField(profile,{profile=it},label={Text("الباقة Profile")},singleLine=true)
+                      Box {
+                          OutlinedTextField(value=profile,onValueChange={profile=it},label={Text("الباقة Profile")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                          TextButton(onClick={profileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
+                          DropdownMenu(expanded=profileMenu,onDismissRequest={profileMenu=false}) {
+                              profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={profile=p;profileMenu=false}) }
+                          }
+                      }
                   }
               },confirmButton={TextButton(enabled=name.isNotBlank()&&password.isNotBlank()&&!busy,onClick={
                   scope.launch {
@@ -564,6 +585,28 @@ jobs:
                       busy=false
                   }
               }){Text("حفظ")}},dismissButton={TextButton(onClick={addOpen=false}){Text("إلغاء")}})
+              profileTarget?.let { target ->
+                  AlertDialog(onDismissRequest={profileTarget=null},title={Text("تغيير باقة $target")},text={
+                      Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                          Text("اختر باقة موجودة على الراوتر",color=Muted)
+                          Box {
+                              OutlinedButton(onClick={profileMenu=true},modifier=Modifier.fillMaxWidth()) { Text(selectedProfile) }
+                              DropdownMenu(expanded=profileMenu,onDismissRequest={profileMenu=false}) {
+                                  profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={selectedProfile=p;profileMenu=false}) }
+                              }
+                          }
+                      }
+                  },confirmButton={
+                      TextButton(enabled=!busy&&selectedProfile.isNotBlank(),onClick={
+                          scope.launch {
+                              busy=true
+                              val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCard(router.host,router.port.toInt(),router.username,router.password,target,selectedProfile)}}
+                              result.onSuccess{note="تم تغيير باقة $target إلى $selectedProfile";profileTarget=null;reload()}.onFailure{note=it.message ?: "تعذر تغيير الباقة"}
+                              busy=false
+                          }
+                      }){Text("حفظ التغيير")}
+                  },dismissButton={TextButton(onClick={profileTarget=null}){Text("إلغاء")}})
+              }
               passwordTarget?.let { target ->
                   AlertDialog(onDismissRequest={passwordTarget=null;newPassword=""},title={Text("تغيير كلمة مرور $target")},text={
                       OutlinedTextField(value=newPassword,onValueChange={newPassword=it},label={Text("كلمة المرور الجديدة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
