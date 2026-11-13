@@ -851,7 +851,7 @@ jobs:
                         val namesByMac = leases.mapNotNull { lease ->
                             fun field(key:String)=lease.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
                             val mac=field("mac-address").lowercase()
-                            val name=field("host-name").ifBlank { field("comment") }
+                            val name=field("host-name")
                             if(mac.isNotBlank() && name.isNotBlank()) mac to name else null
                         }.toMap()
                         command(listOf("/ip/hotspot/host/print")).map { row ->
