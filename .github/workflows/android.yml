@@ -502,7 +502,7 @@ jobs:
               var passwordTarget by remember { mutableStateOf<String?>(null) }
               var newPassword by remember { mutableStateOf("") }
               val scope=rememberCoroutineScope()
-              fun reload() { scope.launch {
+              suspend fun reload() {
                   busy=true
                   val result=withContext(Dispatchers.IO){
                       val api=RouterOsApiClient()
@@ -517,14 +517,14 @@ jobs:
                   }.onFailure { profiles=listOf("default"); if(profile.isBlank()) profile="default"; note="تعذر تحميل الباقات: ${it.message ?: "خطأ اتصال"}" }
                   if(result.first.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة"
                   busy=false
-              } }
+              }
               LaunchedEffect(Unit){reload()}
               AlertDialog(onDismissRequest=onDismiss,title={Text("كروت HotSpot — ${router.name}")},text={
                   Column(verticalArrangement=Arrangement.spacedBy(7.dp)) {
                       Row(verticalAlignment=Alignment.CenterVertically) {
                           Text("الكروت: ${cards.size}",color=Cyan)
                           Spacer(Modifier.weight(1f))
-                          TextButton(enabled=!busy,onClick={reload()}){Text("تحديث")}
+                          TextButton(enabled=!busy,onClick={scope.launch{reload()}}){Text("تحديث")}
                           TextButton(onClick={addOpen=true}){Text("إضافة")}
                       }
                       OutlinedTextField(
