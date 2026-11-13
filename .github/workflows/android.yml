@@ -396,7 +396,7 @@ jobs:
                                           }
                                       }
                                       OutlinedButton(onClick={cardsRouter=router},modifier=Modifier.fillMaxWidth()) { Text("إدارة كروت HotSpot") }
-                                       if (router.lastError.isNotBlank())if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
+                                       if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
                                   }
                               }
                           }
@@ -410,16 +410,17 @@ jobs:
                   if (showOpenWrt) OpenWrtDialog(context, { showOpenWrt = false })
                   if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("إعدادات التطبيق") }, text = {
                       Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                          Text("البرق نت — وضع مراقبة وقراءة فقط", color = Color.White)
+                          Text("البرق نت — مراقبة الراوتر وإدارة كروت HotSpot", color = Color.White)
                           Text("التحديث المباشر: ${if(liveSync) "مفعّل كل 3 ثوانٍ" else "متوقف"}", color = Muted)
                           Text("عدد الراوترات المحفوظة: ${routers.size}", color = Muted)
                           Text("واجهة قياس حركة البيانات: ether1", color = Muted)
-                          Text("لا يقوم التطبيق بتغيير أي إعداد في الراوتر.", color = Color(0xFF55C978))
+                          Text("المراقبة وقراءة البيانات لا تغيّر إعدادات الراوتر. عمليات إضافة أو حذف أو تعديل كروت HotSpot تنفّذ فقط عند طلبك من شاشة إدارة الكروت.", color = Color(0xFFFFC266), fontSize = 11.sp)
                       }
                   }, confirmButton = { TextButton(onClick = { liveSync = !liveSync }) { Text(if(liveSync) "إيقاف المباشر" else "تشغيل المباشر") } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("إغلاق") } })
                   if (showReports) AlertDialog(onDismissRequest = { showReports = false }, title = { Text("تقارير الحالة الحالية") }, text = {
                       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                           Text("الراوترات المتصلة: $onlineRouters / ${routers.size}")
+                           Text("إجمالي أجهزة HOST: $totalHosts")
                           Text("مستخدمو ACTIVE: $totalActive")
                           Text("أجهزة HOST: $totalHosts")
                           routers.forEach { r -> Text("${r.name}: CPU ${r.cpu} • RAM ${r.memory} • تخزين ${r.storage}", color = Muted, fontSize = 12.sp) }
