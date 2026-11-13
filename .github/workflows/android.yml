@@ -529,7 +529,17 @@ jobs:
                                           Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
                                                                                 Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
                                       }
-                                          TextButton(onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
+                                          Column(horizontalAlignment=Alignment.End) {
+                                              TextButton(enabled=!busy,onClick={
+                                                  scope.launch {
+                                                      busy=true
+                                                      val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}
+                                                      result.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "تعذر تغيير الحالة"}
+                                                      busy=false
+                                                  }
+                                              }){Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFC266))}
+                                              TextButton(enabled=!busy,onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
+                                          }
                                   }
                               }
                           }
