@@ -142,7 +142,9 @@ jobs:
                                   val status = api.readStatus(router.host, portNumber, router.username, router.password)
                                   val hosts = api.readHosts(router.host, portNumber, router.username, router.password)
                                   val active = api.readActiveUsers(router.host, portNumber, router.username, router.password)
-                                  val traffic = api.readTraffic(router.host, portNumber, router.username, router.password)
+                                  val traffic = runCatching {
+                                      api.readTraffic(router.host, portNumber, router.username, router.password)
+                                  }.getOrDefault(mapOf("upload" to "غير متاح", "download" to "غير متاح"))
                                   val servers = api.readHotspotServers(router.host, portNumber, router.username, router.password)
                                   Triple(status, hosts to active, traffic to servers)
                               }
@@ -873,7 +875,14 @@ jobs:
 
                 fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
                     withApi(host,port,username,password) { command ->
-                        val row = command(listOf("/interface/monitor-traffic","=interface=ether1","=once=")).firstOrNull()
+                        val interfaces = command(listOf("/interface/print"))
+                        fun field(row: List<String>, key: String) =
+                            row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
+                        val wan = interfaces.firstOrNull { field(it, "name") == "ether1" }
+                            ?: throw IllegalStateException("لم يتم العثور على واجهة ether1")
+                        val interfaceId = field(wan, ".id")
+                        if (interfaceId.isBlank()) throw IllegalStateException("تعذر تحديد معرّف واجهة ether1")
+                        val row = command(listOf("/interface/monitor-traffic","=interface=$interfaceId","=once=")).firstOrNull()
                             ?: throw IllegalStateException("لم تصل قراءة حركة ether1")
                         fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull() ?: 0L
                         fun format(bits:Long):String = when {
