@@ -488,7 +488,8 @@ jobs:
           fun HotspotCardsDialog(router:RouterEntry,onDismiss:()->Unit) {
               var cards by remember { mutableStateOf<List<HotspotCard>>(emptyList()) }
               var profiles by remember { mutableStateOf<List<String>>(listOf("default")) }
-              var profileMenu by remember { mutableStateOf(false) }
+              var addProfileMenu by remember { mutableStateOf(false) }
+              var changeProfileMenu by remember { mutableStateOf(false) }
               var profileTarget by remember { mutableStateOf<String?>(null) }
               var selectedProfile by remember { mutableStateOf("default") }
               var busy by remember { mutableStateOf(false) }
@@ -571,9 +572,9 @@ jobs:
                       OutlinedTextField(password,{password=it},label={Text("كلمة المرور")},singleLine=true,visualTransformation=PasswordVisualTransformation())
                       Box {
                           OutlinedTextField(value=profile,onValueChange={profile=it},label={Text("الباقة Profile")},singleLine=true,modifier=Modifier.fillMaxWidth())
-                          TextButton(onClick={profileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
-                          DropdownMenu(expanded=profileMenu,onDismissRequest={profileMenu=false}) {
-                              profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={profile=p;profileMenu=false}) }
+                          TextButton(onClick={addProfileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
+                          DropdownMenu(expanded=addProfileMenu,onDismissRequest={addProfileMenu=false}) {
+                              profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={profile=p;addProfileMenu=false}) }
                           }
                       }
                   }
@@ -590,9 +591,9 @@ jobs:
                       Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                           Text("اختر باقة موجودة على الراوتر",color=Muted)
                           Box {
-                              OutlinedButton(onClick={profileMenu=true},modifier=Modifier.fillMaxWidth()) { Text(selectedProfile) }
-                              DropdownMenu(expanded=profileMenu,onDismissRequest={profileMenu=false}) {
-                                  profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={selectedProfile=p;profileMenu=false}) }
+                              OutlinedButton(onClick={changeProfileMenu=true},modifier=Modifier.fillMaxWidth()) { Text(selectedProfile) }
+                              DropdownMenu(expanded=changeProfileMenu,onDismissRequest={changeProfileMenu=false}) {
+                                  profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={selectedProfile=p;changeProfileMenu=false}) }
                               }
                           }
                       }
