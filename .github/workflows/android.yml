@@ -504,18 +504,18 @@ jobs:
               val scope=rememberCoroutineScope()
               fun reload() { scope.launch {
                   busy=true
-                  val result=withContext(Dispatchers.IO){runCatching{
+                  val result=withContext(Dispatchers.IO){
                       val api=RouterOsApiClient()
-                      val loadedProfiles=api.readHotspotProfiles(router.host,router.port.toInt(),router.username,router.password)
-                      val loadedCards=api.readHotspotCards(router.host,router.port.toInt(),router.username,router.password)
-                      loadedProfiles to loadedCards
-                  }}
-                  result.onSuccess{data->
-                      profiles=data.first.ifEmpty{listOf("default")}
-                      cards=data.second
+                      val loadedCards=runCatching{api.readHotspotCards(router.host,router.port.toInt(),router.username,router.password)}
+                      val loadedProfiles=runCatching{api.readHotspotProfiles(router.host,router.port.toInt(),router.username,router.password)}
+                      loadedCards to loadedProfiles
+                  }
+                  result.first.onSuccess { cards=it }.onFailure { note=it.message ?: "تعذر تحميل الكروت" }
+                  result.second.onSuccess { loaded ->
+                      profiles=loaded.ifEmpty{listOf("default")}
                       if(profile !in profiles) profile=profiles.first()
-                      note="تم تحميل ${cards.size} كرت و${profiles.size} باقة"
-                  }.onFailure{note=it.message ?: "تعذر التحميل"}
+                  }.onFailure { profiles=listOf("default"); if(profile.isBlank()) profile="default"; note="تعذر تحميل الباقات: ${it.message ?: "خطأ اتصال"}" }
+                  if(result.first.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة"
                   busy=false
               } }
               LaunchedEffect(Unit){reload()}
