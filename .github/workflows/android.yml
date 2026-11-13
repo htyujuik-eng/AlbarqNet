@@ -516,7 +516,7 @@ jobs:
                       profiles=loaded.ifEmpty{listOf("default")}
                       if(profile !in profiles) profile=profiles.first()
                   }.onFailure { profiles=listOf("default"); if(profile.isBlank()) profile="default"; note="تعذر تحميل الباقات: ${it.message ?: "خطأ اتصال"}" }
-                  if(result.first.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة"
+                  if(result.first.isSuccess && result.second.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة"
                   busy=false
               }
               LaunchedEffect(Unit){reload()}
