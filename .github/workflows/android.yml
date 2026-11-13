@@ -571,7 +571,7 @@ jobs:
                       OutlinedTextField(name,{name=it},label={Text("اسم المستخدم / رقم الكرت")},singleLine=true)
                       OutlinedTextField(password,{password=it},label={Text("كلمة المرور")},singleLine=true,visualTransformation=PasswordVisualTransformation())
                       Box {
-                          OutlinedTextField(value=profile,onValueChange={profile=it},label={Text("الباقة Profile")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                          OutlinedTextField(value=profile,onValueChange={},readOnly=true,label={Text("الباقة Profile")},singleLine=true,modifier=Modifier.fillMaxWidth())
                           TextButton(onClick={addProfileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
                           DropdownMenu(expanded=addProfileMenu,onDismissRequest={addProfileMenu=false}) {
                               profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={profile=p;addProfileMenu=false}) }
