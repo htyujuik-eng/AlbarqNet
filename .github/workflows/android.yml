@@ -487,7 +487,7 @@ jobs:
           @Composable
           fun HotspotCardsDialog(router:RouterEntry,onDismiss:()->Unit) {
               var cards by remember { mutableStateOf<List<HotspotCard>>(emptyList()) }
-              var profiles by remember { mutableStateOf<List<String>>(listOf("default")) }
+              var profiles by remember { mutableStateOf<List<String>>(emptyList()) }
               var addProfileMenu by remember { mutableStateOf(false) }
               var changeProfileMenu by remember { mutableStateOf(false) }
               var profileTarget by remember { mutableStateOf<String?>(null) }
@@ -497,7 +497,7 @@ jobs:
               var addOpen by remember { mutableStateOf(false) }
               var name by remember { mutableStateOf("") }
               var password by remember { mutableStateOf("") }
-              var profile by remember { mutableStateOf("default") }
+              var profile by remember { mutableStateOf("") }
               var searchText by remember { mutableStateOf("") }
               var deleteTarget by remember { mutableStateOf<String?>(null) }
               var passwordTarget by remember { mutableStateOf<String?>(null) }
@@ -513,9 +513,9 @@ jobs:
                   }
                   result.first.onSuccess { cards=it }.onFailure { note=it.message ?: "تعذر تحميل الكروت" }
                   result.second.onSuccess { loaded ->
-                      profiles=loaded.ifEmpty{listOf("default")}
-                      if(profile !in profiles) profile=profiles.first()
-                  }.onFailure { profiles=listOf("default"); if(profile.isBlank()) profile="default"; note="تعذر تحميل الباقات: ${it.message ?: "خطأ اتصال"}" }
+                      profiles=loaded.distinct()
+                      if(profile !in profiles) profile=profiles.firstOrNull().orEmpty()
+                  }.onFailure { profiles=emptyList(); profile=""; note="تعذر تحميل الباقات: ${it.message ?: "خطأ اتصال"}" }
                   if(result.first.isSuccess && result.second.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة"
                   busy=false
               }
@@ -526,7 +526,7 @@ jobs:
                           Text("الكروت: ${cards.size}",color=Cyan)
                           Spacer(Modifier.weight(1f))
                           TextButton(enabled=!busy,onClick={scope.launch{reload()}}){Text("تحديث")}
-                          TextButton(onClick={addOpen=true}){Text("إضافة")}
+                          TextButton(enabled=!busy,onClick={addOpen=true}){Text("إضافة")}
                       }
                       OutlinedTextField(
                           value=searchText,onValueChange={searchText=it},
@@ -556,7 +556,7 @@ jobs:
                                                       busy=false
                                                   }
                                               }){Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFC266))}
-                                              TextButton(enabled=!busy,onClick={profileTarget=c.name;selectedProfile=c.profile.ifBlank{"default"}}){Text("تغيير الباقة")}
+                                              TextButton(enabled=!busy&&profiles.isNotEmpty(),onClick={profileTarget=c.name;selectedProfile=if(c.profile in profiles)c.profile else profiles.first()}){Text("تغيير الباقة")}
                                               TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}
                                               TextButton(enabled=!busy,onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
                                           }
@@ -572,16 +572,16 @@ jobs:
                       OutlinedTextField(password,{password=it},label={Text("كلمة المرور")},singleLine=true,visualTransformation=PasswordVisualTransformation())
                       Box {
                           OutlinedTextField(value=profile,onValueChange={},readOnly=true,label={Text("الباقة Profile")},singleLine=true,modifier=Modifier.fillMaxWidth())
-                          TextButton(onClick={addProfileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
+                          TextButton(enabled=profiles.isNotEmpty(),onClick={addProfileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
                           DropdownMenu(expanded=addProfileMenu,onDismissRequest={addProfileMenu=false}) {
                               profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={profile=p;addProfileMenu=false}) }
                           }
                       }
                   }
-              },confirmButton={TextButton(enabled=name.isNotBlank()&&password.isNotBlank()&&!busy,onClick={
+              },confirmButton={TextButton(enabled=name.isNotBlank()&&password.isNotBlank()&&profile in profiles&&!busy,onClick={
                   scope.launch {
                       busy=true
-                      val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().addHotspotCard(router.host,router.port.toInt(),router.username,router.password,name.trim(),password,profile.trim().ifBlank{"default"})}}
+                      val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().addHotspotCard(router.host,router.port.toInt(),router.username,router.password,name.trim(),password,profile.trim())}}
                       result.onSuccess{addOpen=false;name="";password="";note="تمت إضافة الكرت";reload()}.onFailure{note=it.message ?: "فشلت الإضافة"}
                       busy=false
                   }
@@ -598,7 +598,7 @@ jobs:
                           }
                       }
                   },confirmButton={
-                      TextButton(enabled=!busy&&selectedProfile.isNotBlank(),onClick={
+                      TextButton(enabled=!busy&&selectedProfile in profiles,onClick={
                           scope.launch {
                               busy=true
                               val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCard(router.host,router.port.toInt(),router.username,router.password,target,selectedProfile)}}
