@@ -845,20 +845,10 @@ jobs:
                             row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
                         val interfaces = command(listOf("/interface/print"))
                         val interfaceNames = interfaces.map { field(it, "name") }.filter { it.isNotBlank() }.toSet()
-                        val routes = command(listOf("/ip/route/print"))
-                        val defaultRoute = routes.firstOrNull {
-                            field(it, "dst-address") == "0.0.0.0/0" && field(it, "active") == "true"
-                        } ?: routes.firstOrNull { field(it, "dst-address") == "0.0.0.0/0" }
-                            ?: throw IllegalStateException("لم يعثر التطبيق على مسار IPv4 افتراضي للإنترنت")
-                        val immediateGateway = field(defaultRoute, "immediate-gw")
-                        val configuredGateway = field(defaultRoute, "gateway")
-                        val immediateInterface = immediateGateway.substringAfterLast("%", "").trim()
-                        val candidates = listOf(immediateInterface, configuredGateway.trim(), immediateGateway.trim())
-                            .filter { it.isNotBlank() }
-                        val wanName = candidates.firstOrNull { it in interfaceNames }
-                            ?: throw IllegalStateException(
-                                "تعذر تحديد واجهة WAN من المسار الافتراضي (gateway=$configuredGateway، immediate-gw=$immediateGateway). لم يتم افتراض ether1 لتجنب قراءة واجهة خاطئة."
-                            )
+                        val wanName = "ether1"
+                        if (wanName !in interfaceNames) {
+                            throw IllegalStateException("لم يعثر التطبيق على منفذ ether1 لقياس حركة الإنترنت. لم يتم اختيار منفذ آخر تلقائياً.")
+                        }
                         val row = command(listOf("/interface/monitor-traffic","=interface=$wanName","=once=")).firstOrNull()
                             ?: throw IllegalStateException("لم تصل قراءة حركة واجهة WAN: $wanName")
                         fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull()
