@@ -296,7 +296,7 @@ jobs:
                                           TrafficTile("رفع", routers.firstOrNull { it.status == "متصل" }?.uploadRate ?: "غير متاح", Color(0xFF19365B), Color(0xFF39A9F5), Modifier.weight(1f))
                                           TrafficTile("تحميل", routers.firstOrNull { it.status == "متصل" }?.downloadRate ?: "غير متاح", Color(0xFF1B383B), Color(0xFF55B86A), Modifier.weight(1f))
                                       }
-                                      Text("القراءة المباشرة من ether1: RX تحميل الإنترنت وTX رفع الإنترنت.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                                      Text("قراءة مباشرة من واجهة الإنترنت المكتشفة تلقائياً: RX تنزيل وTX رفع.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
                                   }
                               }
                           }
@@ -875,15 +875,20 @@ jobs:
 
                 fun readTraffic(host:String,port:Int,username:String,password:String):Map<String,String> =
                     withApi(host,port,username,password) { command ->
-                        val interfaces = command(listOf("/interface/print"))
                         fun field(row: List<String>, key: String) =
                             row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
-                        val wan = interfaces.firstOrNull { field(it, "name") == "ether1" }
-                            ?: throw IllegalStateException("لم يتم العثور على واجهة ether1")
-                        val interfaceId = field(wan, ".id")
-                        if (interfaceId.isBlank()) throw IllegalStateException("تعذر تحديد معرّف واجهة ether1")
-                        val row = command(listOf("/interface/monitor-traffic","=interface=$interfaceId","=once=")).firstOrNull()
-                            ?: throw IllegalStateException("لم تصل قراءة حركة ether1")
+                        val interfaces = command(listOf("/interface/print"))
+                        val routes = runCatching { command(listOf("/ip/route/print")) }.getOrDefault(emptyList())
+                        val defaultRoute = routes.firstOrNull {
+                            field(it, "dst-address") == "0.0.0.0/0" && field(it, "active") == "true"
+                        } ?: routes.firstOrNull { field(it, "dst-address") == "0.0.0.0/0" }
+                        val routeGateway = defaultRoute?.let { field(it, "immediate-gw").ifBlank { field(it, "gateway") } }.orEmpty()
+                        val routeInterface = routeGateway.substringAfterLast("%", "").takeIf { it.isNotBlank() }
+                        val wanName = routeInterface?.takeIf { name -> interfaces.any { field(it, "name") == name } }
+                            ?: interfaces.firstOrNull { field(it, "name") == "ether1" }?.let { field(it, "name") }
+                            ?: throw IllegalStateException("لم يتم العثور على واجهة الإنترنت؛ تحقق من اسم واجهة WAN")
+                        val row = command(listOf("/interface/monitor-traffic","=interface=$wanName","=once=")).firstOrNull()
+                            ?: throw IllegalStateException("لم تصل قراءة حركة واجهة $wanName")
                         fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull() ?: 0L
                         fun format(bits:Long):String = when {
                             bits >= 1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000.0)
@@ -891,7 +896,7 @@ jobs:
                             else -> "$bits bps"
                         }
                         mapOf("upload" to format(rate("tx-bits-per-second")),
-                            "download" to format(rate("rx-bits-per-second")))
+                            "download" to format(rate("rx-bits-per-second")), "interface" to wanName)
                     }
             
                 fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
