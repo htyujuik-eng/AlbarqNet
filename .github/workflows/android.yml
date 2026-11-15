@@ -416,7 +416,7 @@ jobs:
                           Text("البرق نت — مراقبة الراوتر وإدارة كروت HotSpot", color = Color.White)
                           Text("التحديث المباشر: ${if(liveSync) "مفعّل كل 3 ثوانٍ" else "متوقف"}", color = Muted)
                           Text("عدد الراوترات المحفوظة: ${routers.size}", color = Muted)
-                          Text("واجهة قياس حركة البيانات: ${routers.firstOrNull { it.status == \"متصل\" }?.wanInterface ?: \"غير محدد\"}", color = Muted)
+                          Text("واجهة قياس حركة البيانات: ${routers.firstOrNull { it.status == "متصل" }?.wanInterface ?: "غير محدد"}", color = Muted)
                           Text("المراقبة وقراءة البيانات لا تغيّر إعدادات الراوتر. عمليات إضافة أو حذف أو تعديل كروت HotSpot تنفّذ فقط عند طلبك من شاشة إدارة الكروت.", color = Color(0xFFFFC266), fontSize = 11.sp)
                       }
                   }, confirmButton = { TextButton(onClick = { liveSync = !liveSync }) { Text(if(liveSync) "إيقاف المباشر" else "تشغيل المباشر") } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("إغلاق") } })
