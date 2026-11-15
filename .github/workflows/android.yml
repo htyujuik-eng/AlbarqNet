@@ -844,29 +844,36 @@ jobs:
                         fun field(row: List<String>, key: String) =
                             row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
                         val interfaces = command(listOf("/interface/print"))
-                        val routes = runCatching { command(listOf("/ip/route/print")) }.getOrDefault(emptyList())
+                        val interfaceNames = interfaces.map { field(it, "name") }.filter { it.isNotBlank() }.toSet()
+                        val routes = command(listOf("/ip/route/print"))
                         val defaultRoute = routes.firstOrNull {
                             field(it, "dst-address") == "0.0.0.0/0" && field(it, "active") == "true"
                         } ?: routes.firstOrNull { field(it, "dst-address") == "0.0.0.0/0" }
-                        val routeGateway = defaultRoute?.let { field(it, "immediate-gw").ifBlank { field(it, "gateway") } }.orEmpty()
-                        val routeInterface = routeGateway.substringAfterLast("%", "").takeIf { it.isNotBlank() }
-                        val wanName = routeInterface?.takeIf { name -> interfaces.any { field(it, "name") == name } }
-                            ?: interfaces.firstOrNull { field(it, "name") == "ether1" }?.let { field(it, "name") }
-                            ?: throw IllegalStateException("لم يتم العثور على واجهة الإنترنت؛ تحقق من اسم واجهة WAN")
+                            ?: throw IllegalStateException("لم يعثر التطبيق على مسار IPv4 افتراضي للإنترنت")
+                        val immediateGateway = field(defaultRoute, "immediate-gw")
+                        val configuredGateway = field(defaultRoute, "gateway")
+                        val immediateInterface = immediateGateway.substringAfterLast("%", "").trim()
+                        val candidates = listOf(immediateInterface, configuredGateway.trim(), immediateGateway.trim())
+                            .filter { it.isNotBlank() }
+                        val wanName = candidates.firstOrNull { it in interfaceNames }
+                            ?: throw IllegalStateException(
+                                "تعذر تحديد واجهة WAN من المسار الافتراضي (gateway=$configuredGateway، immediate-gw=$immediateGateway). لم يتم افتراض ether1 لتجنب قراءة واجهة خاطئة."
+                            )
                         val row = command(listOf("/interface/monitor-traffic","=interface=$wanName","=once=")).firstOrNull()
-                            ?: throw IllegalStateException("لم تصل قراءة حركة واجهة $wanName")
-                        fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull() ?: 0L
+                            ?: throw IllegalStateException("لم تصل قراءة حركة واجهة WAN: $wanName")
+                        fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull()
+                            ?: throw IllegalStateException("قراءة $key غير متاحة على واجهة $wanName")
                         fun format(bits:Long):String = when {
                             bits >= 1_000_000 -> String.format(java.util.Locale.US,"%.2f Mbps",bits/1_000_000.0)
                             bits >= 1_000 -> String.format(java.util.Locale.US,"%.1f Kbps",bits/1_000.0)
                             else -> "$bits bps"
                         }
-                        mapOf("upload" to format(rate("tx-bits-per-second")),
-                            "download" to format(rate("rx-bits-per-second")), "interface" to wanName,
-                            "upload-bps" to rate("tx-bits-per-second").toString(),
-                            "download-bps" to rate("rx-bits-per-second").toString())
+                        val tx = rate("tx-bits-per-second")
+                        val rx = rate("rx-bits-per-second")
+                        mapOf("upload" to format(tx), "download" to format(rx), "interface" to wanName,
+                            "upload-bps" to tx.toString(), "download-bps" to rx.toString())
                     }
-            
+
                 fun readUserManager(host:String,port:Int,username:String,password:String):UserManagerData =
                 withApi(host,port,username,password) { command ->
                     fun field(row:List<String>,key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
