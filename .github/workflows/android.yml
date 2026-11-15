@@ -953,7 +953,7 @@ jobs:
                 withApi(host,port,username,password) { command ->
                     fun field(row:List<String>,key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
                     fun records(path:String,properties:String,make:(List<String>)->UserManagerRecord):List<UserManagerRecord> =
-                        command(listOf(path+"/print","=.proplist=$properties")).mapNotNull { row -> runCatching { make(row) }.getOrNull() }
+                        runCatching { command(listOf(path+"/print","=.proplist=$properties")) }.getOrDefault(emptyList()).mapNotNull { row -> runCatching { make(row) }.getOrNull() }
                     val users=records("/user-manager/user","name,disabled,group,shared-users") { row ->
                         UserManagerRecord(field(row,"name").ifBlank{"بدون اسم"},"المجموعة: ${field(row,"group").ifBlank{"default"}} • جلسات مشتركة: ${field(row,"shared-users").ifBlank{"1"}} • ${if(field(row,"disabled")=="true") "معطّل" else "مفعّل"}")
                     }
