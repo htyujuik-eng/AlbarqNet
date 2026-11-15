@@ -845,12 +845,9 @@ jobs:
                     withApi(host,port,username,password) { command ->
                         fun field(row: List<String>, key: String) =
                             row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
-                        val interfaces = command(listOf("/interface/print"))
-                        val interfaceNames = interfaces.map { field(it, "name") }.filter { it.isNotBlank() }.toSet()
+                        // استخدم اسم الواجهة المحدد حرفياً مباشرة؛ لا نعتمد على /interface/print
+                        // لأن بعض إصدارات/صلاحيات RouterOS قد تعيد قائمة الواجهات بصيغة مختلفة.
                         val wanName = "IN"
-                        if (wanName !in interfaceNames) {
-                            throw IllegalStateException("لم يعثر التطبيق على الواجهة IN لقياس حركة الإنترنت. لم يتم اختيار واجهة أخرى تلقائياً.")
-                        }
                         val row = command(listOf("/interface/monitor-traffic","=interface=$wanName","=once=")).firstOrNull()
                             ?: throw IllegalStateException("لم تصل قراءة حركة واجهة WAN: $wanName")
                         fun rate(key:String):Long = row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=")?.toLongOrNull()
