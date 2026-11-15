@@ -405,7 +405,7 @@ jobs:
                                               Text("الأجهزة HOST")
                                           }
                                       }
-                                      OutlinedButton(onClick={cardsRouter=router},modifier=Modifier.fillMaxWidth()) { Text("إدارة كروت HotSpot") }
+                                      OutlinedButton(onClick={cardsRouter=router},modifier=Modifier.fillMaxWidth()) { Text("عرض كروت HotSpot") }
                                       OutlinedButton(onClick={userManagerRouter=router},modifier=Modifier.fillMaxWidth()) { Text("مراقبة User Manager") }
                                        if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
                                   }
@@ -422,11 +422,11 @@ jobs:
                   userManagerRouter?.let { router -> UserManagerDialog(router) { userManagerRouter = null } }
                   if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("إعدادات التطبيق") }, text = {
                       Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                          Text("البرق نت — مراقبة الراوتر وإدارة كروت HotSpot", color = Color.White)
+                          Text("البرق نت — مراقبة الراوتر وقراءة البيانات فقط", color = Color.White)
                           Text("التحديث المباشر: ${if(liveSync) "مفعّل كل 3 ثوانٍ" else "متوقف"}", color = Muted)
                           Text("عدد الراوترات المحفوظة: ${routers.size}", color = Muted)
                           Text("واجهة قياس حركة البيانات: ${routers.firstOrNull { it.status == "متصل" }?.wanInterface ?: "غير محدد"}", color = Muted)
-                          Text("المراقبة وقراءة البيانات لا تغيّر إعدادات الراوتر. عمليات إضافة أو حذف أو تعديل كروت HotSpot تنفّذ فقط عند طلبك من شاشة إدارة الكروت.", color = Color(0xFFFFC266), fontSize = 11.sp)
+                          Text("التطبيق للقراءة والمراقبة فقط، ولا يغيّر إعدادات الراوتر أو كروت HotSpot.", color = Color(0xFF55C978), fontSize = 11.sp)
                       }
                   }, confirmButton = { TextButton(onClick = { liveSync = !liveSync }) { Text(if(liveSync) "إيقاف المباشر" else "تشغيل المباشر") } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("إغلاق") } })
                   if (showReports) AlertDialog(onDismissRequest = { showReports = false }, title = { Text("تقارير الحالة الحالية") }, text = {
@@ -500,154 +500,53 @@ jobs:
           fun HotspotCardsDialog(router:RouterEntry,onDismiss:()->Unit) {
               var cards by remember { mutableStateOf<List<HotspotCard>>(emptyList()) }
               var profiles by remember { mutableStateOf<List<String>>(emptyList()) }
-              var addProfileMenu by remember { mutableStateOf(false) }
-              var changeProfileMenu by remember { mutableStateOf(false) }
-              var profileTarget by remember { mutableStateOf<String?>(null) }
-              var selectedProfile by remember { mutableStateOf("default") }
               var busy by remember { mutableStateOf(false) }
-              var note by remember { mutableStateOf("") }
-              var addOpen by remember { mutableStateOf(false) }
-              var name by remember { mutableStateOf("") }
-              var password by remember { mutableStateOf("") }
-              var profile by remember { mutableStateOf("") }
+              var note by remember { mutableStateOf("جارٍ تحميل البيانات...") }
               var searchText by remember { mutableStateOf("") }
-              var deleteTarget by remember { mutableStateOf<String?>(null) }
-              var passwordTarget by remember { mutableStateOf<String?>(null) }
-              var newPassword by remember { mutableStateOf("") }
               val scope=rememberCoroutineScope()
               suspend fun reload() {
                   busy=true
-                  val result=withContext(Dispatchers.IO){
+                  val result=withContext(Dispatchers.IO) {
                       val api=RouterOsApiClient()
-                      val loadedCards=runCatching{api.readHotspotCards(router.host,router.port.toInt(),router.username,router.password)}
-                      val loadedProfiles=runCatching{api.readHotspotProfiles(router.host,router.port.toInt(),router.username,router.password)}
+                      val loadedCards=runCatching { api.readHotspotCards(router.host,router.port.toInt(),router.username,router.password) }
+                      val loadedProfiles=runCatching { api.readHotspotProfiles(router.host,router.port.toInt(),router.username,router.password) }
                       loadedCards to loadedProfiles
                   }
                   result.first.onSuccess { cards=it }.onFailure { note=it.message ?: "تعذر تحميل الكروت" }
-                  result.second.onSuccess { loaded ->
-                      profiles=loaded.distinct()
-                      if(profile !in profiles) profile=profiles.firstOrNull().orEmpty()
-                  }.onFailure { profiles=emptyList(); profile=""; note="تعذر تحميل الباقات: ${it.message ?: "خطأ اتصال"}" }
-                  if(result.first.isSuccess && result.second.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة"
+                  result.second.onSuccess { profiles=it.distinct() }.onFailure { profiles=emptyList() }
+                  if(result.first.isSuccess) note="تم تحميل ${cards.size} كرت • ${profiles.size} باقة — عرض فقط"
                   busy=false
               }
-              LaunchedEffect(Unit){reload()}
-              AlertDialog(onDismissRequest=onDismiss,title={Text("كروت HotSpot — ${router.name}")},text={
+              LaunchedEffect(Unit) { reload() }
+              AlertDialog(onDismissRequest=onDismiss,title={Text("عرض كروت HotSpot — ${router.name}")},text={
                   Column(verticalArrangement=Arrangement.spacedBy(7.dp)) {
                       Row(verticalAlignment=Alignment.CenterVertically) {
                           Text("الكروت: ${cards.size}",color=Cyan)
                           Spacer(Modifier.weight(1f))
-                          TextButton(enabled=!busy,onClick={scope.launch{reload()}}){Text("تحديث")}
-                          TextButton(enabled=!busy,onClick={addOpen=true}){Text("إضافة")}
+                          TextButton(enabled=!busy,onClick={scope.launch { reload() }}) { Text("تحديث") }
                       }
-                      OutlinedTextField(
-                          value=searchText,onValueChange={searchText=it},
-                          modifier=Modifier.fillMaxWidth(),singleLine=true,
-                          label={Text("بحث باسم الكرت أو الباقة")}
-                      )
+                      OutlinedTextField(value=searchText,onValueChange={searchText=it},modifier=Modifier.fillMaxWidth(),singleLine=true,label={Text("بحث باسم الكرت أو الباقة")})
                       Text(note,color=Muted,fontSize=11.sp)
+                      Text("الباقات المتاحة: ${profiles.joinToString().ifBlank { "غير متاحة" }}",color=Muted,fontSize=10.sp)
                       if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                       val visibleCards=cards.filter { it.name.contains(searchText,true) || it.profile.contains(searchText,true) || it.server.contains(searchText,true) }
                       Text("النتائج: ${visibleCards.size}",color=Muted,fontSize=10.sp)
                       LazyColumn(Modifier.heightIn(max=320.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                           items(visibleCards) { c ->
                               Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
-                                  Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                                      Column(Modifier.weight(1f)) {
-                                          Text(c.name,color=Color.White,fontWeight=FontWeight.Bold)
-                                          Text("الباقة: ${c.profile.ifBlank{"default"}} • السيرفر: ${c.server.ifBlank{"all"}}",color=Muted,fontSize=10.sp)
-                                          Text("المدة: ${c.uptime.ifBlank{"—"}} • الصلاحية: ${c.limitUptime.ifBlank{"—"}}",color=Muted,fontSize=10.sp)
-                                                                                Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
-                                      }
-                                          Column(horizontalAlignment=Alignment.End) {
-                                              TextButton(enabled=!busy,onClick={
-                                                  scope.launch {
-                                                      busy=true
-                                                      val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().setHotspotCardDisabled(router.host,router.port.toInt(),router.username,router.password,c.name,!c.disabled)}}
-                                                      result.onSuccess{note=if(c.disabled) "تم تفعيل ${c.name}" else "تم تعطيل ${c.name}";reload()}.onFailure{note=it.message ?: "تعذر تغيير الحالة"}
-                                                      busy=false
-                                                  }
-                                              }){Text(if(c.disabled) "تفعيل" else "تعطيل",color=if(c.disabled) Color(0xFF55C978) else Color(0xFFFFC266))}
-                                              TextButton(enabled=!busy&&profiles.isNotEmpty(),onClick={profileTarget=c.name;selectedProfile=if(c.profile in profiles)c.profile else profiles.first()}){Text("تغيير الباقة")}
-                                              TextButton(enabled=!busy,onClick={passwordTarget=c.name;newPassword=""}){Text("كلمة المرور")}
-                                              TextButton(enabled=!busy,onClick={deleteTarget=c.name}){Text("حذف",color=Color(0xFFFF7777))}
-                                          }
+                                  Column(Modifier.padding(9.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                                      Text(c.name,color=Color.White,fontWeight=FontWeight.Bold)
+                                      Text("الباقة: ${c.profile.ifBlank { "default" }} • السيرفر: ${c.server.ifBlank { "all" }}",color=Muted,fontSize=10.sp)
+                                      Text("المدة: ${c.uptime.ifBlank { "—" }} • الصلاحية: ${c.limitUptime.ifBlank { "—" }}",color=Muted,fontSize=10.sp)
+                                      Text(if(c.disabled) "الحالة: معطّل" else "الحالة: مفعّل",color=if(c.disabled) Color(0xFFFF7777) else Color(0xFF55C978),fontSize=10.sp)
                                   }
                               }
                           }
                       }
+                      Text("هذه الشاشة للقراءة فقط؛ لا تضيف أو تعدّل أو تحذف أي كرت على الراوتر.",color=Cyan,fontSize=11.sp)
                   }
-              },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
-              if(addOpen) AlertDialog(onDismissRequest={addOpen=false},title={Text("إضافة كرت")},text={
-                  Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                      OutlinedTextField(name,{name=it},label={Text("اسم المستخدم / رقم الكرت")},singleLine=true)
-                      OutlinedTextField(password,{password=it},label={Text("كلمة المرور")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-                      Box {
-                          OutlinedTextField(value=profile,onValueChange={},readOnly=true,label={Text("الباقة Profile")},singleLine=true,modifier=Modifier.fillMaxWidth())
-                          TextButton(enabled=profiles.isNotEmpty(),onClick={addProfileMenu=true},modifier=Modifier.align(Alignment.CenterEnd)){Text("اختيار")}
-                          DropdownMenu(expanded=addProfileMenu,onDismissRequest={addProfileMenu=false}) {
-                              profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={profile=p;addProfileMenu=false}) }
-                          }
-                      }
-                  }
-              },confirmButton={TextButton(enabled=name.isNotBlank()&&password.isNotBlank()&&profile in profiles&&!busy,onClick={
-                  scope.launch {
-                      busy=true
-                      val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().addHotspotCard(router.host,router.port.toInt(),router.username,router.password,name.trim(),password,profile.trim())}}
-                      result.onSuccess{addOpen=false;name="";password="";note="تمت إضافة الكرت";reload()}.onFailure{note=it.message ?: "فشلت الإضافة"}
-                      busy=false
-                  }
-              }){Text("حفظ")}},dismissButton={TextButton(onClick={addOpen=false}){Text("إلغاء")}})
-              profileTarget?.let { target ->
-                  AlertDialog(onDismissRequest={profileTarget=null},title={Text("تغيير باقة $target")},text={
-                      Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                          Text("اختر باقة موجودة على الراوتر",color=Muted)
-                          Box {
-                              OutlinedButton(onClick={changeProfileMenu=true},modifier=Modifier.fillMaxWidth()) { Text(selectedProfile) }
-                              DropdownMenu(expanded=changeProfileMenu,onDismissRequest={changeProfileMenu=false}) {
-                                  profiles.forEach { p -> DropdownMenuItem(text={Text(p)},onClick={selectedProfile=p;changeProfileMenu=false}) }
-                              }
-                          }
-                      }
-                  },confirmButton={
-                      TextButton(enabled=!busy&&selectedProfile in profiles,onClick={
-                          scope.launch {
-                              busy=true
-                              val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCard(router.host,router.port.toInt(),router.username,router.password,target,selectedProfile)}}
-                              result.onSuccess{note="تم تغيير باقة $target إلى $selectedProfile";profileTarget=null;reload()}.onFailure{note=it.message ?: "تعذر تغيير الباقة"}
-                              busy=false
-                          }
-                      }){Text("حفظ التغيير")}
-                  },dismissButton={TextButton(onClick={profileTarget=null}){Text("إلغاء")}})
-              }
-              passwordTarget?.let { target ->
-                  AlertDialog(onDismissRequest={passwordTarget=null;newPassword=""},title={Text("تغيير كلمة مرور $target")},text={
-                      OutlinedTextField(value=newPassword,onValueChange={newPassword=it},label={Text("كلمة المرور الجديدة")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-                  },confirmButton={
-                      TextButton(enabled=newPassword.isNotBlank()&&!busy,onClick={
-                          scope.launch {
-                              busy=true
-                              val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().updateHotspotCardPassword(router.host,router.port.toInt(),router.username,router.password,target,newPassword)}}
-                              result.onSuccess{note="تم تغيير كلمة مرور $target";passwordTarget=null;newPassword=""}.onFailure{note=it.message ?: "تعذر تغيير كلمة المرور"}
-                              busy=false
-                          }
-                      }){Text("حفظ")}
-                  },dismissButton={TextButton(onClick={passwordTarget=null;newPassword=""}){Text("إلغاء")}})
-              }
-              deleteTarget?.let { target -> AlertDialog(onDismissRequest={deleteTarget=null},title={Text("تأكيد الحذف")},text={Text("حذف الكرت $target من الراوتر؟")},confirmButton={
-                  TextButton(onClick={
-                      deleteTarget=null
-                      scope.launch {
-                          busy=true
-                          val result=withContext(Dispatchers.IO){runCatching{RouterOsApiClient().removeHotspotCard(router.host,router.port.toInt(),router.username,router.password,target)}}
-                          result.onSuccess{note="تم حذف $target";reload()}.onFailure{note=it.message ?: "فشل الحذف"}
-                          busy=false
-                      }
-                  }){Text("حذف نهائياً",color=Color(0xFFFF7777))}
-              },dismissButton={TextButton(onClick={deleteTarget=null}){Text("إلغاء")}}) }
+              },confirmButton={TextButton(onClick=onDismiss) { Text("إغلاق") }})
           }
-
-            @Composable
             fun UserManagerDialog(router:RouterEntry,onDismiss:()->Unit) {
                 var data by remember { mutableStateOf<UserManagerData?>(null) }
                 var loading by remember { mutableStateOf(true) }
@@ -982,43 +881,6 @@ jobs:
                         row.firstOrNull{it.startsWith("=name=")}?.substringAfter("=name=")
                     }.filter{it.isNotBlank()}.distinct()
                 }
-            fun updateHotspotCard(host:String,port:Int,username:String,password:String,name:String,profile:String) {
-                require(profile.isNotBlank()) { "اختر الباقة" }
-                withApi(host,port,username,password) { command ->
-                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                    command(listOf("/ip/hotspot/user/set","=.id=$id","=profile=$profile")); Unit
-                }
-            }
-            fun setHotspotCardDisabled(host:String,port:Int,username:String,password:String,name:String,disabled:Boolean) {
-                withApi(host,port,username,password) { command ->
-                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                    command(listOf(if(disabled) "/ip/hotspot/user/disable" else "/ip/hotspot/user/enable","=.id=$id")); Unit
-                }
-            }
-            fun updateHotspotCardPassword(host:String,port:Int,username:String,password:String,name:String,newPassword:String) {
-                require(newPassword.isNotBlank()) { "اكتب كلمة المرور الجديدة" }
-                withApi(host,port,username,password) { command ->
-                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                    command(listOf("/ip/hotspot/user/set","=.id=$id","=password=$newPassword")); Unit
-                }
-            }
-            fun addHotspotCard(host:String,port:Int,username:String,password:String,name:String,secret:String,profile:String) {
-                require(name.isNotBlank()) { "اكتب اسم الكرت" }
-                withApi(host,port,username,password) { command ->
-                    command(listOf("/ip/hotspot/user/add","=name=$name","=password=$secret","=profile=$profile")); Unit
-                }
-            }
-            fun removeHotspotCard(host:String,port:Int,username:String,password:String,name:String) {
-                withApi(host,port,username,password) { command ->
-                    val row=command(listOf("/ip/hotspot/user/print","?name=$name")).firstOrNull() ?: throw IllegalStateException("الكرت غير موجود")
-                    val id=row.firstOrNull{it.startsWith("=.id=")}?.substringAfter("=.id=") ?: throw IllegalStateException("تعذر تحديد الكرت")
-                    command(listOf("/ip/hotspot/user/remove","=.id=$id")); Unit
-                }
-            }
-
             fun readActiveUsers(host: String, port: Int, username: String, password: String): List<ActiveHotspotUser> =
                     withApi(host, port, username, password) { command ->
                         command(listOf("/ip/hotspot/active/print")).map { row ->
