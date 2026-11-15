@@ -845,9 +845,9 @@ jobs:
                             row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: ""
                         val interfaces = command(listOf("/interface/print"))
                         val interfaceNames = interfaces.map { field(it, "name") }.filter { it.isNotBlank() }.toSet()
-                        val wanName = "ether1"
+                        val wanName = "IN"
                         if (wanName !in interfaceNames) {
-                            throw IllegalStateException("لم يعثر التطبيق على منفذ ether1 لقياس حركة الإنترنت. لم يتم اختيار منفذ آخر تلقائياً.")
+                            throw IllegalStateException("لم يعثر التطبيق على الواجهة IN لقياس حركة الإنترنت. لم يتم اختيار واجهة أخرى تلقائياً.")
                         }
                         val row = command(listOf("/interface/monitor-traffic","=interface=$wanName","=once=")).firstOrNull()
                             ?: throw IllegalStateException("لم تصل قراءة حركة واجهة WAN: $wanName")
