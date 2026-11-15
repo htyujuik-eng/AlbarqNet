@@ -92,7 +92,7 @@ jobs:
               val username: String, val password: String,
               var status: String = "غير متصل",
               var identity: String = "—", var cpu: String = "—",
-              var memory: String = "—", var storage: String = "—", var uptime: String = "—",
+              var memory: String = "—", var storage: String = "—", var temperature: String = "غير مدعوم", var uptime: String = "—",
               var activeUsers: String = "—", var lastError: String = "",
               var uploadRate: String = "غير متاح", var downloadRate: String = "غير متاح", var wanInterface: String = "غير محدد"
           ) {
@@ -155,6 +155,7 @@ jobs:
                               router.cpu = data.first["cpu"] ?: "—"
                               router.memory = data.first["memory"] ?: "—"
                               router.storage = data.first["storage"] ?: "—"
+                               router.temperature = data.first["temperature"] ?: "غير مدعوم"
                               router.uptime = data.first["uptime"] ?: "—"
                               router.activeUsers = data.first["active"] ?: "0"
                               router.hostEntries = data.second.first
@@ -274,6 +275,9 @@ jobs:
                                           ResourceTile("CPU", routers.firstOrNull { it.status == "متصل" }?.cpu ?: "—", Color(0xFF7665F5), Modifier.weight(1f))
                                           ResourceTile("RAM", routers.firstOrNull { it.status == "متصل" }?.memory ?: "—", Color(0xFF55B86A), Modifier.weight(1f))
                                           ResourceTile("التخزين", routers.firstOrNull { it.status == "متصل" }?.storage ?: "—", Color(0xFFFFA21A), Modifier.weight(1f))
+                                      }
+                                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                          ResourceTile("حرارة الجهاز", routers.firstOrNull { it.status == "متصل" }?.temperature ?: "غير مدعوم", Color(0xFFFF7777), Modifier.fillMaxWidth())
                                       }
                                       Divider(color = Muted.copy(alpha = .35f))
                                       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -837,7 +841,10 @@ jobs:
                         val resources = command(listOf("/system/resource/print")).firstOrNull().orEmpty()
                         val identity = command(listOf("/system/identity/print")).firstOrNull().orEmpty()
                         val active = command(listOf("/ip/hotspot/active/print"))
+                        val health = runCatching { command(listOf("/system/health/print")) }.getOrDefault(emptyList())
                         fun value(row: List<String>, key: String) = row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") ?: "—"
+                        val temperatureValue = health.asSequence().flatMap { row -> listOf("temperature", "cpu-temperature", "board-temperature").mapNotNull { key -> row.firstOrNull { it.startsWith("=$key=") }?.substringAfter("=$key=") } }.firstOrNull { it.isNotBlank() }
+                        val temperature = when { temperatureValue.isNullOrBlank() -> "غير مدعوم"; temperatureValue.endsWith("C", true) -> temperatureValue; else -> "$temperatureValue °C" }
                         val total = value(resources, "total-memory").toLongOrNull()
                         val free = value(resources, "free-memory").toLongOrNull()
                         val memory = if (total != null && free != null && total > 0) "${(total - free) * 100 / total}%" else "—"
@@ -845,7 +852,7 @@ jobs:
                         val diskFree = value(resources, "free-hdd-space").toLongOrNull()
                         val storage = if (diskTotal != null && diskFree != null && diskTotal > 0) "${((diskTotal-diskFree)*100/diskTotal)}%" else "غير مدعوم"
                         mapOf("identity" to value(identity, "name"), "cpu" to value(resources, "cpu-load").let { if (it == "—") it else "$it%" },
-                            "memory" to memory, "storage" to storage, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
+                            "memory" to memory, "storage" to storage, "temperature" to temperature, "uptime" to value(resources, "uptime"), "active" to active.size.toString())
                     }
             
                 fun readHosts(host:String,port:Int,username:String,password:String):List<HotspotHost> =
