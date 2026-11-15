@@ -861,8 +861,10 @@ jobs:
                     val profiles=records("/user-manager/profile","name,price,validity,name-for-users") { row ->
                         UserManagerRecord(field(row,"name").ifBlank{"باقة بلا اسم"},"السعر: ${field(row,"price").ifBlank{"0"}} • الصلاحية: ${field(row,"validity").ifBlank{"غير محددة"}}")
                     }
-                    val sessions=records("/user-manager/session","user,active,started,uptime,download,upload,user-address,nas-ip-address") { row ->
-                        UserManagerRecord(field(row,"user").ifBlank{"مستخدم غير معروف"},"الحالة: ${if(field(row,"active")=="true") "نشطة" else "منتهية"} • المدة: ${field(row,"uptime").ifBlank{"—"}} • تنزيل: ${field(row,"download").ifBlank{"0"}} بايت • رفع: ${field(row,"upload").ifBlank{"0"}} بايت • IP: ${field(row,"user-address").ifBlank{"—"}}")
+                    val sessions=records("/user-manager/session","user,status,started,ended,uptime,download,upload,user-address,nas-ip-address,calling-station-id,nas-port-id") { row ->
+                        val sessionStatus=field(row,"status").ifBlank{"غير محددة"}
+                        val state=when(sessionStatus.lowercase()) { "start","interim" -> "نشطة"; "stop","close-acked","expired" -> "منتهية"; else -> sessionStatus }
+                        UserManagerRecord(field(row,"user").ifBlank{"مستخدم غير معروف"},"الحالة: $state • البداية: ${field(row,"started").ifBlank{"—"}} • المدة: ${field(row,"uptime").ifBlank{"—"}} • تنزيل: ${field(row,"download").ifBlank{"0"}} بايت • رفع: ${field(row,"upload").ifBlank{"0"}} بايت • IP: ${field(row,"user-address").ifBlank{"—"}} • NAS: ${field(row,"nas-ip-address").ifBlank{"—"}} • معرّف الجهاز: ${field(row,"calling-station-id").ifBlank{"—"}}")
                     }
                     val payments=records("/user-manager/payment","user,price,currency,profile,trans-status,trans-end") { row ->
                         UserManagerRecord(field(row,"user").ifBlank{"—"},"المبلغ: ${field(row,"price").ifBlank{"—"}} ${field(row,"currency")} • الباقة: ${field(row,"profile").ifBlank{"—"}} • الحالة: ${field(row,"trans-status").ifBlank{"—"}} • التاريخ: ${field(row,"trans-end").ifBlank{"—"}}")
