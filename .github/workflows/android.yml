@@ -547,6 +547,7 @@ jobs:
                   }
               },confirmButton={TextButton(onClick=onDismiss) { Text("إغلاق") }})
           }
+            @Composable
             fun UserManagerDialog(router:RouterEntry,onDismiss:()->Unit) {
                 var data by remember { mutableStateOf<UserManagerData?>(null) }
                 var loading by remember { mutableStateOf(true) }
