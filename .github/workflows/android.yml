@@ -1135,8 +1135,14 @@ jobs:
           KOTLIN
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("appsrc/app/build.gradle.kts")
-          s = p.read_text().replace("versionCode = 1", "versionCode = 8").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.8.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
+          s = p.read_text()
+          app_ids = re.findall(r'applicationId\\s*=\\s*"[^"]+"', s)
+          if len(app_ids) != 1:
+              raise SystemExit(f"Expected exactly one applicationId, found {len(app_ids)}")
+          s = re.sub(r'applicationId\\s*=\\s*"[^"]+"', 'applicationId = "com.albarqnet.app.next"', s, count=1)
+          s = s.replace("versionCode = 1", "versionCode = 8").replace('versionCode = 3', 'versionCode = 4').replace('versionName = "0.1.0"', 'versionName = "0.8.0"').replace('versionName = "0.3.0"', 'versionName = "0.4.0"')
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           if "com.github.mwiede:jsch" not in s:
               s = s.replace("dependencies {", "dependencies {\n    implementation(\"com.github.mwiede:jsch:0.2.20\")", 1)
