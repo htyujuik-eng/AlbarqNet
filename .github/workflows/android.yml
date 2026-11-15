@@ -96,7 +96,7 @@ jobs:
               var identity: String = "—", var cpu: String = "—",
               var memory: String = "—", var storage: String = "—", var temperature: String = "غير مدعوم", var uptime: String = "—",
               var activeUsers: String = "—", var lastError: String = "",
-              var uploadRate: String = "غير متاح", var downloadRate: String = "غير متاح", var wanInterface: String = "غير محدد",
+              var uploadRate: String = "غير متاح", var downloadRate: String = "غير متاح", var wanInterface: String = "غير محدد", var trafficError: String = "",
               var uploadBitsPerSecond: Long = -1L, var downloadBitsPerSecond: Long = -1L
           ) {
               var activeSessions by mutableStateOf<List<ActiveHotspotUser>>(emptyList())
@@ -149,7 +149,7 @@ jobs:
                                   val active = api.readActiveUsers(router.host, portNumber, router.username, router.password)
                                   val traffic = runCatching {
                                       api.readTraffic(router.host, portNumber, router.username, router.password)
-                                  }.getOrDefault(mapOf("upload" to "غير متاح", "download" to "غير متاح", "upload-bps" to "-1", "download-bps" to "-1"))
+                                  }.getOrElse { error -> mapOf("upload" to "غير متاح", "download" to "غير متاح", "upload-bps" to "-1", "download-bps" to "-1", "error" to (error.message ?: error.javaClass.simpleName)) }
                                   val servers = api.readHotspotServers(router.host, portNumber, router.username, router.password)
                                   Triple(status, hosts to active, traffic to servers)
                               }
@@ -170,6 +170,7 @@ jobs:
                               router.uploadBitsPerSecond = data.third.first["upload-bps"]?.toLongOrNull() ?: -1L
                               router.downloadBitsPerSecond = data.third.first["download-bps"]?.toLongOrNull() ?: -1L
                                router.wanInterface = data.third.first["interface"] ?: "غير متاح"
+                               router.trafficError = data.third.first["error"] ?: ""
                               if (liveSync && router.uploadBitsPerSecond >= 0L && router.downloadBitsPerSecond >= 0L) {
                                   trafficHistory.record(router.name, router.uploadBitsPerSecond, router.downloadBitsPerSecond)
                               }
@@ -311,7 +312,8 @@ jobs:
                                           TrafficTile("رفع", routers.firstOrNull { it.status == "متصل" }?.uploadRate ?: "غير متاح", Color(0xFF19365B), Color(0xFF39A9F5), Modifier.weight(1f))
                                           TrafficTile("تحميل", routers.firstOrNull { it.status == "متصل" }?.downloadRate ?: "غير متاح", Color(0xFF1B383B), Color(0xFF55B86A), Modifier.weight(1f))
                                       }
-                                      Text("قراءة مباشرة من واجهة الإنترنت المكتشفة تلقائياً: RX تنزيل وTX رفع.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                                      Text("قراءة مباشرة من الواجهة ${routers.firstOrNull { it.status == "متصل" }?.wanInterface ?: "غير محدد"}: RX تنزيل وTX رفع.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                                      routers.firstOrNull { it.status == "متصل" }?.trafficError?.takeIf { it.isNotBlank() }?.let { Text("سبب تعذّر قراءة الرفع والتنزيل: $it", color = Color(0xFFFFB45C), fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp)) }
                                   }
                               }
                           }
