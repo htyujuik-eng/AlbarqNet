@@ -560,18 +560,19 @@ jobs:
                     result.onFailure { error=it.message ?: "تعذر قراءة User Manager" }
                     loading=false
                 }
-                val rows=when(page) { "الباقات" -> data?.profiles.orEmpty(); "الجلسات" -> data?.sessions.orEmpty(); else -> data?.users.orEmpty() }
+                val rows=when(page) { "الباقات" -> data?.profiles.orEmpty(); "الجلسات" -> data?.sessions.orEmpty(); "المدفوعات" -> data?.payments.orEmpty(); else -> data?.users.orEmpty() }
                 AlertDialog(onDismissRequest=onDismiss,title={Text("User Manager • ${router.name}")},text={
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("قراءة فقط — لا يتم إنشاء أو تعديل أو حذف أي حساب",color=Muted,fontSize=11.sp)
                         Row(horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-                            listOf("المستخدمون","الباقات","الجلسات").forEach { item -> FilterChip(selected=page==item,onClick={page=item},label={Text(item,fontSize=10.sp)}) }
+                            listOf("المستخدمون","الباقات","الجلسات","المدفوعات").forEach { item -> FilterChip(selected=page==item,onClick={page=item},label={Text(item,fontSize=10.sp)}) }
                         }
                         if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                         if(error.isNotBlank()) Text(error,color=Color(0xFFFF9999),fontSize=11.sp)
                         if(!loading && error.isBlank()) {
-                            Text("المستخدمون: ${data?.users?.size ?: 0} • الباقات: ${data?.profiles?.size ?: 0} • الجلسات: ${data?.sessions?.size ?: 0}",color=Cyan,fontSize=11.sp)
+                            Text("المستخدمون: ${data?.users?.size ?: 0} • الباقات: ${data?.profiles?.size ?: 0} • الجلسات: ${data?.sessions?.size ?: 0} • المدفوعات: ${data?.payments?.size ?: 0}",color=Cyan,fontSize=11.sp)
                             if(page=="الجلسات" && rows.isEmpty()) Text("لا توجد جلسات مسجلة. تأكد من تفعيل Accounting في إعدادات RADIUS.",color=Muted,fontSize=11.sp)
+                            else if(page=="المدفوعات" && rows.isEmpty()) Text("لا توجد سجلات دفع يعرضها User Manager حالياً.",color=Muted,fontSize=11.sp)
                             else if(rows.isEmpty()) Text("لا توجد بيانات، أو أن User Manager غير مثبت/غير مفعّل أو الصلاحيات لا تسمح بالقراءة.",color=Muted,fontSize=11.sp)
                             else LazyColumn(Modifier.heightIn(max=380.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                                 items(rows) { item -> Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
