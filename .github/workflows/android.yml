@@ -86,6 +86,8 @@ jobs:
           data class HotspotHost(val address:String,val mac:String,val server:String,val uptime:String,val interfaceName:String,val deviceName:String="غير معروف")
           data class HotspotCard(val name:String,val profile:String,val server:String,val uptime:String,val limitUptime:String,val disabled:Boolean=false)
           data class HotspotServer(val name:String,val interfaceName:String,val profile:String,val addressPool:String,val enabled:Boolean)
+          data class UserManagerRecord(val title:String,val detail:String)
+          data class UserManagerData(val users:List<UserManagerRecord>,val profiles:List<UserManagerRecord>,val sessions:List<UserManagerRecord>,val payments:List<UserManagerRecord>)
           
           data class RouterEntry(
               val name: String, val host: String, val port: String,
@@ -123,6 +125,7 @@ jobs:
               var showSettings by remember { mutableStateOf(false) }
               var showReports by remember { mutableStateOf(false) }
               var cardsRouter by remember { mutableStateOf<RouterEntry?>(null) }
+              var userManagerRouter by remember { mutableStateOf<RouterEntry?>(null) }
               var showRouters by remember { mutableStateOf(false) }
               var tab by remember { mutableStateOf("الرئيسية") }
               val scope = rememberCoroutineScope()
@@ -403,6 +406,7 @@ jobs:
                                           }
                                       }
                                       OutlinedButton(onClick={cardsRouter=router},modifier=Modifier.fillMaxWidth()) { Text("إدارة كروت HotSpot") }
+                                      OutlinedButton(onClick={userManagerRouter=router},modifier=Modifier.fillMaxWidth()) { Text("مراقبة User Manager") }
                                        if (router.lastError.isNotBlank()) Text(router.lastError, color = Color(0xFFFF9999), fontSize = 10.sp)
                                   }
                               }
@@ -415,6 +419,7 @@ jobs:
                       }
                   }
                   if (showOpenWrt) OpenWrtDialog(context, { showOpenWrt = false })
+                  userManagerRouter?.let { router -> UserManagerDialog(router) { userManagerRouter = null } }
                   if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("إعدادات التطبيق") }, text = {
                       Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                           Text("البرق نت — مراقبة الراوتر وإدارة كروت HotSpot", color = Color.White)
@@ -641,6 +646,43 @@ jobs:
                   }){Text("حذف نهائياً",color=Color(0xFFFF7777))}
               },dismissButton={TextButton(onClick={deleteTarget=null}){Text("إلغاء")}}) }
           }
+
+            @Composable
+            fun UserManagerDialog(router:RouterEntry,onDismiss:()->Unit) {
+                var data by remember { mutableStateOf<UserManagerData?>(null) }
+                var loading by remember { mutableStateOf(true) }
+                var error by remember { mutableStateOf("") }
+                var page by remember { mutableStateOf("المستخدمون") }
+                LaunchedEffect(router.host,router.port) {
+                    loading=true
+                    val result=withContext(Dispatchers.IO) { runCatching { RouterOsApiClient().readUserManager(router.host,router.port.toInt(),router.username,router.password) } }
+                    result.onSuccess { data=it }
+                    result.onFailure { error=it.message ?: "تعذر قراءة User Manager" }
+                    loading=false
+                }
+                val rows=when(page) { "الباقات" -> data?.profiles.orEmpty(); "الجلسات" -> data?.sessions.orEmpty(); else -> data?.users.orEmpty() }
+                AlertDialog(onDismissRequest=onDismiss,title={Text("User Manager • ${router.name}")},text={
+                    Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Text("قراءة فقط — لا يتم إنشاء أو تعديل أو حذف أي حساب",color=Muted,fontSize=11.sp)
+                        Row(horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+                            listOf("المستخدمون","الباقات","الجلسات").forEach { item -> FilterChip(selected=page==item,onClick={page=item},label={Text(item,fontSize=10.sp)}) }
+                        }
+                        if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if(error.isNotBlank()) Text(error,color=Color(0xFFFF9999),fontSize=11.sp)
+                        if(!loading && error.isBlank()) {
+                            Text("المستخدمون: ${data?.users?.size ?: 0} • الباقات: ${data?.profiles?.size ?: 0} • الجلسات: ${data?.sessions?.size ?: 0}",color=Cyan,fontSize=11.sp)
+                            if(page=="الجلسات" && rows.isEmpty()) Text("لا توجد جلسات مسجلة. تأكد من تفعيل Accounting في إعدادات RADIUS.",color=Muted,fontSize=11.sp)
+                            else if(rows.isEmpty()) Text("لا توجد بيانات، أو أن User Manager غير مثبت/غير مفعّل أو الصلاحيات لا تسمح بالقراءة.",color=Muted,fontSize=11.sp)
+                            else LazyColumn(Modifier.heightIn(max=380.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                items(rows) { item -> Surface(color=Panel,shape=RoundedCornerShape(9.dp),modifier=Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(9.dp)) { Text(item.title,color=Color.White,fontWeight=FontWeight.Bold,fontSize=13.sp); Text(item.detail,color=Muted,fontSize=10.sp) }
+                                } }
+                            }
+                            if(data?.payments?.isNotEmpty()==true) Text("عمليات الدفع المسجلة: ${data?.payments?.size} (للعرض التفصيلي لاحقاً)",color=Muted,fontSize=10.sp)
+                        }
+                    }
+                },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
+            }
 
             @Composable
             fun ActiveUsersDialog(router: RouterEntry, onDismiss: () -> Unit) {
@@ -907,7 +949,27 @@ jobs:
                             "download" to format(rate("rx-bits-per-second")), "interface" to wanName)
                     }
             
-                fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
+                fun readUserManager(host:String,port:Int,username:String,password:String):UserManagerData =
+                withApi(host,port,username,password) { command ->
+                    fun field(row:List<String>,key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
+                    fun records(path:String,properties:String,make:(List<String>)->UserManagerRecord):List<UserManagerRecord> =
+                        command(listOf(path+"/print","=.proplist=$properties")).mapNotNull { row -> runCatching { make(row) }.getOrNull() }
+                    val users=records("/user-manager/user","name,disabled,group,shared-users") { row ->
+                        UserManagerRecord(field(row,"name").ifBlank{"بدون اسم"},"المجموعة: ${field(row,"group").ifBlank{"default"}} • جلسات مشتركة: ${field(row,"shared-users").ifBlank{"1"}} • ${if(field(row,"disabled")=="true") "معطّل" else "مفعّل"}")
+                    }
+                    val profiles=records("/user-manager/profile","name,price,validity,name-for-users") { row ->
+                        UserManagerRecord(field(row,"name").ifBlank{"باقة بلا اسم"},"السعر: ${field(row,"price").ifBlank{"0"}} • الصلاحية: ${field(row,"validity").ifBlank{"غير محددة"}}")
+                    }
+                    val sessions=records("/user-manager/session","user,active,started,uptime,download,upload,user-address,nas-ip-address") { row ->
+                        UserManagerRecord(field(row,"user").ifBlank{"مستخدم غير معروف"},"الحالة: ${if(field(row,"active")=="true") "نشطة" else "منتهية"} • المدة: ${field(row,"uptime").ifBlank{"—"}} • تنزيل: ${field(row,"download").ifBlank{"0"}} بايت • رفع: ${field(row,"upload").ifBlank{"0"}} بايت • IP: ${field(row,"user-address").ifBlank{"—"}}")
+                    }
+                    val payments=records("/user-manager/payment","user,price,currency,profile,trans-status,trans-end") { row ->
+                        UserManagerRecord(field(row,"user").ifBlank{"—"},"المبلغ: ${field(row,"price").ifBlank{"—"}} ${field(row,"currency")} • الباقة: ${field(row,"profile").ifBlank{"—"}} • الحالة: ${field(row,"trans-status").ifBlank{"—"}} • التاريخ: ${field(row,"trans-end").ifBlank{"—"}}")
+                    }
+                    UserManagerData(users,profiles,sessions,payments)
+                }
+
+            fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
                 withApi(host,port,username,password) { command ->
                     command(listOf("/ip/hotspot/user/print")).map { row ->
                         fun field(key:String)=row.firstOrNull{it.startsWith("=$key=")}?.substringAfter("=$key=") ?: ""
