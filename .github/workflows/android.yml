@@ -87,7 +87,7 @@ jobs:
           data class HotspotCard(val name:String,val profile:String,val server:String,val uptime:String,val limitUptime:String,val disabled:Boolean=false)
           data class HotspotServer(val name:String,val interfaceName:String,val profile:String,val addressPool:String,val enabled:Boolean)
           data class UserManagerRecord(val title:String,val detail:String)
-          data class UserManagerData(val users:List<UserManagerRecord>,val profiles:List<UserManagerRecord>,val sessions:List<UserManagerRecord>,val payments:List<UserManagerRecord>)
+          data class UserManagerData(val users:List<UserManagerRecord>,val profiles:List<UserManagerRecord>,val sessions:List<UserManagerRecord>,val payments:List<UserManagerRecord>,val approvedPaymentTotals:List<String>)
           
           data class RouterEntry(
               val name: String, val host: String, val port: String,
@@ -579,7 +579,10 @@ jobs:
                                     Column(Modifier.padding(9.dp)) { Text(item.title,color=Color.White,fontWeight=FontWeight.Bold,fontSize=13.sp); Text(item.detail,color=Muted,fontSize=10.sp) }
                                 } }
                             }
-                            if(data?.payments?.isNotEmpty()==true) Text("عمليات الدفع المسجلة: ${data?.payments?.size} (للعرض التفصيلي لاحقاً)",color=Muted,fontSize=10.sp)
+                            if(page=="المدفوعات" && data?.approvedPaymentTotals?.isNotEmpty()==true) {
+                                data?.approvedPaymentTotals?.forEach { total -> Text(total,color=Color(0xFF55C978),fontSize=11.sp) }
+                            }
+                            if(page=="المدفوعات" && data?.payments?.isNotEmpty()==true) Text("عدد سجلات الدفع: ${data?.payments?.size} • الإجمالي يحسب العمليات المعتمدة فقط، ويفصل العملات المختلفة.",color=Muted,fontSize=10.sp)
                         }
                     }
                 },confirmButton={TextButton(onClick=onDismiss){Text("إغلاق")}})
@@ -866,10 +869,20 @@ jobs:
                         val state=when(sessionStatus.lowercase()) { "start","interim" -> "نشطة"; "stop","close-acked","expired" -> "منتهية"; else -> sessionStatus }
                         UserManagerRecord(field(row,"user").ifBlank{"مستخدم غير معروف"},"الحالة: $state • البداية: ${field(row,"started").ifBlank{"—"}} • المدة: ${field(row,"uptime").ifBlank{"—"}} • تنزيل: ${field(row,"download").ifBlank{"0"}} بايت • رفع: ${field(row,"upload").ifBlank{"0"}} بايت • IP: ${field(row,"user-address").ifBlank{"—"}} • NAS: ${field(row,"nas-ip-address").ifBlank{"—"}} • معرّف الجهاز: ${field(row,"calling-station-id").ifBlank{"—"}}")
                     }
-                    val payments=records("/user-manager/payment","user,price,currency,profile,trans-status,trans-end") { row ->
+                    val paymentRows=runCatching { command(listOf("/user-manager/payment/print","=.proplist=user,price,currency,profile,trans-status,trans-end")) }.getOrDefault(emptyList())
+                    val payments=paymentRows.mapNotNull { row -> runCatching {
                         UserManagerRecord(field(row,"user").ifBlank{"—"},"المبلغ: ${field(row,"price").ifBlank{"—"}} ${field(row,"currency")} • الباقة: ${field(row,"profile").ifBlank{"—"}} • الحالة: ${field(row,"trans-status").ifBlank{"—"}} • التاريخ: ${field(row,"trans-end").ifBlank{"—"}}")
+                    }.getOrNull() }
+                    val approvedPaymentTotals=paymentRows.mapNotNull { row ->
+                        val status=field(row,"trans-status").trim().lowercase()
+                        val amount=field(row,"price").trim().toBigDecimalOrNull()
+                        val currency=field(row,"currency").trim().ifBlank{"عملة غير محددة"}
+                        if(status=="approved" && amount!=null) currency to amount else null
+                    }.groupBy({it.first},{it.second}).map { (currency,amounts) ->
+                        val total=amounts.fold(java.math.BigDecimal.ZERO) { sum,value -> sum.add(value) }.stripTrailingZeros().toPlainString()
+                        "الإجمالي المعتمد: $total $currency • العمليات: ${amounts.size}"
                     }
-                    UserManagerData(users,profiles,sessions,payments)
+                    UserManagerData(users,profiles,sessions,payments,approvedPaymentTotals)
                 }
 
             fun readHotspotCards(host:String,port:Int,username:String,password:String):List<HotspotCard> =
